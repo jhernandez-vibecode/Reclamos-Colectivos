@@ -533,6 +533,7 @@ select.form-input option{background:#fff;}
           <h2 class="page-title">Estadísticas Anuales</h2>
           <p class="page-sub">Análisis por cobertura · montos · casos destacados</p>
         </div>
+        <button class="btn btn-primary" onclick="exportPDF()">⬇ Descargar Reporte PDF</button>
       </div>
       <div class="year-tabs">
         <div class="year-tab active" onclick="setStatsYear(2025,this)">2025</div>
@@ -699,6 +700,10 @@ select.form-input option{background:#fff;}
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -1265,6 +1270,169 @@ function showToast(msg, color='#10b981') {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// ===================== EXPORT PDF =====================
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const data = claims.filter(c => c.anno === statsYear);
+  const totalInd = data.reduce((s,c)=>s+(c.montoInd||0),0);
+  const totalCasos = data.length;
+  const cobMap = {};
+  data.forEach(c => { cobMap[c.cobertura] = (cobMap[c.cobertura]||0) + (c.montoInd||0); });
+  const top5 = [...data].sort((a,b)=>(b.montoInd||0)-(a.montoInd||0)).slice(0,5);
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 18;
+  let y = 18;
+
+  // ── HEADER ──
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageW, 32, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text('RECLAMOS COLECTIVOS — Póliza 0101 VTM 805', margin, 13);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.setTextColor(148,163,184);
+  doc.text('Asociación Cultural y Educativa para la Policía  |  Reporte Anual ' + statsYear, margin, 21);
+  doc.text('Generado: ' + new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'long',year:'numeric'}), pageW-margin, 21, {align:'right'});
+  y = 42;
+
+  // ── RESUMEN ──
+  doc.setTextColor(15,23,42);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.text('Resumen del Año ' + statsYear, margin, y);
+  y += 8;
+
+  const boxes = [
+    {label:'Total de Casos', val: String(totalCasos)},
+    {label:'Total Indemnizado', val:'₡'+fmt(totalInd)},
+    {label:'Pago Adelantado BITP', val:'₡'+fmt(cobMap['Pago Adelantado BITP']||0)},
+    {label:'Cobertura Muerte', val:'₡'+fmt((cobMap['Cob. Muerte']||0)+(cobMap['Muerte Acc. Y Desm (DID)']||0))},
+  ];
+  const boxW = (pageW - 2*margin - 9) / 4;
+  boxes.forEach((b,i) => {
+    const x = margin + i*(boxW+3);
+    doc.setFillColor(241,245,249);
+    doc.roundedRect(x, y, boxW, 18, 2, 2, 'F');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100,116,139);
+    doc.text(b.label, x+4, y+6);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15,23,42);
+    doc.text(b.val, x+4, y+14);
+  });
+  y += 26;
+
+  // ── DISTRIBUCIÓN POR COBERTURA ──
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15,23,42);
+  doc.text('Distribución por Cobertura', margin, y);
+  y += 6;
+
+  const cobColors = { 'Pago Adelantado BITP':[14,165,233], 'Cob. Muerte':[5,150,105], 'Muerte Acc. Y Desm (DID)':[124,58,237] };
+  Object.entries(cobMap).forEach(([cob, monto]) => {
+    const pct = totalInd > 0 ? (monto/totalInd*100).toFixed(1) : '0.0';
+    const barW = totalInd > 0 ? (monto/totalInd) * (pageW - 2*margin - 30) : 0;
+    const col = cobColors[cob] || [100,116,139];
+    doc.setFillColor(...col);
+    doc.roundedRect(margin, y, barW, 7, 1, 1, 'F');
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(15,23,42);
+    doc.text(`${cob} — ₡${fmt(monto)} (${pct}%)`, margin + barW + 3, y + 5);
+    y += 11;
+  });
+  y += 6;
+
+  // ── TOP 5 ──
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15,23,42);
+  doc.text('🏆 Top 5 Casos — Monto Más Alto', margin, y);
+  y += 4;
+
+  doc.autoTable({
+    startY: y,
+    margin: {left: margin, right: margin},
+    head: [['#','Asegurado','Nº de Caso','Cobertura','Mes','Monto Pagado']],
+    body: top5.map((c,i) => [
+      i+1,
+      capitalName(c.nombre),
+      c.numero,
+      c.cobertura,
+      c.mes||'—',
+      '₡'+fmt(c.montoInd||0)
+    ]),
+    headStyles:{fillColor:[15,23,42],textColor:255,fontStyle:'bold',fontSize:8},
+    bodyStyles:{fontSize:8,textColor:[30,41,59]},
+    alternateRowStyles:{fillColor:[248,250,252]},
+    columnStyles:{0:{cellWidth:8,halign:'center'},5:{halign:'right',fontStyle:'bold',textColor:[5,150,105]}},
+  });
+  y = doc.lastAutoTable.finalY + 10;
+
+  // ── DETALLE COMPLETO ──
+  doc.addPage();
+  y = 18;
+  doc.setFillColor(15,23,42);
+  doc.rect(0,0,pageW,16,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.text('Detalle Completo de Reclamos — ' + statsYear, margin, 11);
+
+  const mesesOrder = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const sorted = [...data].sort((a,b) => (mesesOrder.indexOf(a.mes)-mesesOrder.indexOf(b.mes)) || 0);
+
+  doc.autoTable({
+    startY: 22,
+    margin: {left: margin, right: margin},
+    head: [['Asegurado','Cédula','Nº de Caso','Cobertura','Mes','Mto. Asegurado','Mto. Pagado','Estado']],
+    body: sorted.map(c => [
+      capitalName(c.nombre),
+      c.cedula||'—',
+      c.numero,
+      c.cobertura,
+      c.mes||'—',
+      '₡'+fmt(c.montoAseg||0),
+      '₡'+fmt(c.montoInd||0),
+      c.estado
+    ]),
+    headStyles:{fillColor:[15,23,42],textColor:255,fontStyle:'bold',fontSize:7},
+    bodyStyles:{fontSize:7,textColor:[30,41,59]},
+    alternateRowStyles:{fillColor:[248,250,252]},
+    columnStyles:{
+      6:{halign:'right',textColor:[5,150,105],fontStyle:'bold'},
+      7:{halign:'center'}
+    },
+    didDrawCell: (hookData) => {
+      if (hookData.column.index === 7 && hookData.section === 'body') {
+        const est = hookData.cell.raw;
+        const colors = {Pagada:[5,150,105],Presentado:[37,99,235],'En Ajuste':[217,119,6],Declinado:[220,38,38],'Apelación':[124,58,237]};
+        const col = colors[est]||[100,116,139];
+        doc.setTextColor(...col);
+      }
+    }
+  });
+
+  // Footer
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p=1;p<=totalPages;p++) {
+    doc.setPage(p);
+    doc.setFontSize(7.5);
+    doc.setTextColor(148,163,184);
+    doc.text(`Póliza 0101 VTM 805 — Seguros del INS — Página ${p} de ${totalPages}`, pageW/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
+  }
+
+  doc.save(`Reporte_Reclamos_VTM805_${statsYear}.pdf`);
+  showToast('📄 Reporte descargado correctamente','#059669');
 }
 
 // ===================== START =====================
