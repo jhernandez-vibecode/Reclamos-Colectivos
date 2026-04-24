@@ -654,6 +654,31 @@ select.form-input option{background:#fff;}
           </div>
 
           <div class="form-divider"></div>
+          <div class="form-section-title">Datos del Afectado <span style="font-weight:400;color:var(--text3);font-size:12px;">(si difiere del asegurado)</span></div>
+
+          <div class="form-group full">
+            <label class="form-label">Nombre del Afectado</label>
+            <input class="form-input" id="f-afectado-nombre" type="text" placeholder="APELLIDOS NOMBRE">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cédula del Afectado</label>
+            <input class="form-input" id="f-afectado-cedula" type="text" placeholder="000000000">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vínculo</label>
+            <input class="form-input" id="f-afectado-vinculo" type="text" list="vinculo-options" placeholder="ej. Cónyuge, Hijo/a…">
+            <datalist id="vinculo-options">
+              <option value="Titular">
+              <option value="Cónyuge">
+              <option value="Hijo/a">
+              <option value="Padre">
+              <option value="Madre">
+              <option value="Hermano/a">
+              <option value="Otro">
+            </datalist>
+          </div>
+
+          <div class="form-divider"></div>
           <div class="form-section-title">Cobertura y Montos</div>
 
           <div class="form-group">
@@ -1210,6 +1235,9 @@ function fillForm(c) {
   document.getElementById('f-nombre').value = c.nombre||'';
   document.getElementById('f-cedula').value = c.cedula||'';
   document.getElementById('f-anno').value = c.anno||2026;
+  document.getElementById('f-afectado-nombre').value = c.afectadoNombre||'';
+  document.getElementById('f-afectado-cedula').value = c.afectadoCedula||'';
+  document.getElementById('f-afectado-vinculo').value = c.afectadoVinculo||'';
   document.getElementById('f-cobertura').value = c.cobertura||'';
   setMontoAseg(c.montoAseg||'');
   document.getElementById('f-monto-ind').value = c.montoInd||'';
@@ -1254,6 +1282,9 @@ async function saveClaim() {
     poliza: polizaActiva,
     referencia: document.getElementById('f-ref').value.trim(),
     cedula: document.getElementById('f-cedula').value.trim(),
+    afectadoNombre: document.getElementById('f-afectado-nombre').value.trim(),
+    afectadoCedula: document.getElementById('f-afectado-cedula').value.trim(),
+    afectadoVinculo: document.getElementById('f-afectado-vinculo').value.trim(),
     anno: parseInt(document.getElementById('f-anno').value),
     cobertura: document.getElementById('f-cobertura').value,
     montoAseg: parseFloat(document.getElementById('f-monto-aseg').value)||0,
