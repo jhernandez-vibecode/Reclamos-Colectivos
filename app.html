@@ -793,15 +793,7 @@ async function api(method, body) {
 
 // ===================== INIT =====================
 function initApp() {
-  setUser({ displayName: 'Juan Carlos Hernández', email: 'jhernandez@segurosdelins.com' });
   loadClaims();
-}
-
-function setUser(user) {
-  const initials = (user.displayName||user.email).split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('user-name').textContent = user.displayName || user.email;
-  document.getElementById('user-email').textContent = user.email;
-  document.getElementById('user-avatar').textContent = initials;
 }
 
 function logout() {
