@@ -35,6 +35,18 @@ const SEED = [
   {id:'t1',numero:'58222025000522',nombre:'ENRIQUE AUGUSTO GRANADOS ROBLES',cedula:'105930004',cobertura:'Pago Adelantado BITP',montoAseg:4000000,montoInd:3986908,mes:'FEBRERO',anno:2026,estado:'Pagada',fechaPres:'2026-01-10',fechaEv:'2025-12-01',fechaPago:'2026-02-15'},
   {id:'t2',numero:'58222026000021',nombre:'GIOVANNI ORTIZ BECERRA',cedula:'602180174',cobertura:'Pago Adelantado BITP',montoAseg:6000000,montoInd:6000000,mes:'FEBRERO',anno:2026,estado:'Pagada',fechaPres:'2026-01-12',fechaEv:'2025-12-05',fechaPago:'2026-02-18'},
   {id:'t3',numero:'58222025000543',nombre:'HERNANDEZ AGÜERO ARNULFO MARTIN',cedula:'108130585',cobertura:'Pago Adelantado BITP',montoAseg:6000000,montoInd:5990188,mes:'ABRIL',anno:2026,estado:'Pagada',fechaPres:'2026-01-15',fechaEv:'2025-09-01',fechaPago:'2026-04-10'},
+  {id:'p703-1',poliza:'VTM 703',numero:'58222024000734',nombre:'SOLANO CALDERON ALFONSO',cedula:'301590530',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:397909,anno:2025,estado:'Pagada'},
+  {id:'p703-2',poliza:'VTM 703',numero:'58222025000055',nombre:'VALVERDE BARBOZA RIGOBERTO',cedula:'108520107',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:398209,anno:2025,estado:'Pagada'},
+  {id:'p703-3',poliza:'VTM 703',numero:'58222025000160',nombre:'ZUÑIGA PEREZ GERARDO',cedula:'601780161',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:200000,anno:2025,estado:'Pagada',notas:'Beneficiario: MURILLO MOLINA SANDRA MARIA (cónyuge)'},
+  {id:'p703-4',poliza:'VTM 703',numero:'58222025000252',nombre:'MENDEZ MELENDEZ MARVIN',cedula:'601970043',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:200000,anno:2025,estado:'Pagada',notas:'Beneficiaria: RAMIREZ MUÑOZ ANA ISABEL (cónyuge)'},
+  {id:'p703-5',poliza:'VTM 703',numero:'58222025000292',nombre:'RAMIREZ PEREZ JOSE ANICETO',cedula:'301730679',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:398809,anno:2025,estado:'Pagada'},
+  {id:'p703-6',poliza:'VTM 703',numero:'58222025000345',nombre:'VEGA JARQUIN MANUEL SALVADOR',cedula:'203610987',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:400000,anno:2025,estado:'Pagada'},
+  {id:'p703-7',poliza:'VTM 703',numero:'58222025000311',nombre:'RAMIREZ MORALES JORGE',cedula:'204030085',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:399409,anno:2025,estado:'Pagada'},
+  {id:'p703-8',poliza:'VTM 703',numero:'58222025000376',nombre:'RIVERA ROBLES EMILIO',cedula:'103050182',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:399709,anno:2025,estado:'Pagada'},
+  {id:'p703-9',poliza:'VTM 703',numero:'58222025000410',nombre:'MENDEZ NUÑEZ OTON',cedula:'202140306',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:200000,anno:2025,estado:'Pagada',notas:'Beneficiaria: VENEGAS VALVERDE ANA GERARDA (cónyuge)'},
+  {id:'p703-10',poliza:'VTM 703',numero:'58222025000425',nombre:'RAMIREZ FONSECA JORGE ARTURO',cedula:'900600553',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:396382,anno:2025,estado:'Pagada'},
+  {id:'p703-11',poliza:'VTM 703',numero:'58222025000447',nombre:'CENTENO HURTADO MARIO ALBERTO',cedula:'502820382',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:0,anno:2025,estado:'En Ajuste',notas:'Beneficiario: CENTENO LARA LUIS MARIO'},
+  {id:'p703-12',poliza:'VTM 703',numero:'58222025000466',nombre:'MORERA SANCHEZ MARTIN GENNER',cedula:'106920108',cobertura:'Cob. Muerte',montoAseg:400000,montoInd:396710,anno:2025,estado:'Pagada'},
 ];
 
 function verifyToken(req) {
