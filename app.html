@@ -513,6 +513,7 @@ select.form-input option{background:#fff;}
           <option value="todos">Todos los años</option>
           <option value="2025">2025</option>
           <option value="2026">2026</option>
+          <option value="2027">2027</option>
         </select>
         <select class="filter-select" id="filter-cob" onchange="renderCards()">
           <option value="todas">Todas las coberturas</option>
@@ -541,6 +542,7 @@ select.form-input option{background:#fff;}
       <div class="year-tabs">
         <div class="year-tab active" onclick="setStatsYear(2025,this)">2025</div>
         <div class="year-tab" onclick="setStatsYear(2026,this)">2026</div>
+        <div class="year-tab" onclick="setStatsYear(2027,this)">2027</div>
       </div>
       <div class="stats-cards" id="stats-cards"></div>
       <div class="charts-row">
@@ -618,7 +620,7 @@ select.form-input option{background:#fff;}
           <div class="form-group">
             <label class="form-label">Año</label>
             <select class="form-input" id="f-anno">
-              <option>2025</option><option>2026</option>
+              <option>2025</option><option>2026</option><option>2027</option>
             </select>
           </div>
 
@@ -1003,7 +1005,7 @@ async function parsePdf(input) {
 
   const get = (pattern) => { const m=text.match(pattern); return m ? m[1].trim() : ''; };
 
-  let numero='', referencia='', nombre='', cedula='', fechaEv='', fechaPago='', iban='', cobertura='', montoAseg=0, montoInd=0;
+  let numero='', referencia='', nombre='', cedula='', fechaPres='', fechaEv='', fechaPago='', iban='', cobertura='', montoAseg=0, montoInd=0, anno=0;
 
   if (isLiquidacion) {
     // Reporte de Liquidación INS
@@ -1019,27 +1021,23 @@ async function parsePdf(input) {
     montoAseg = parseMonto(get(/Monto Asegurado\s+([\d,\.]+)/i));
     montoInd = parseMonto(get(/Monto a pagar\s+([\d,\.]+)/i));
   } else if (isReclamo) {
-    // Carta de reclamo ACEPO (presentación de caso)
-    // Nombre: "del asegurado (a) APELLIDO NOMBRE"
-    const nomMatch = text.match(/asegurado\s*\(?a?\)?\s+([A-ZÁÉÍÓÚÜÑ\s]{6,60})\s+c[eé]dula/i)
-      || text.match(/([A-ZÁÉÍÓÚÜÑ]+\s+[A-ZÁÉÍÓÚÜÑ]+\s+[A-ZÁÉÍÓÚÜÑ]+\s+[A-ZÁÉÍÓÚÜÑ]+)\s+c[eé]dula/i);
+    // Carta de apertura ACEPO — "del asegurado (a) APELLIDO NOMBRE cédula No. X-XXXX-XXXX"
+    const nomMatch = text.match(/asegurado\s*\(?a?\)?\s+([A-ZÁÉÍÓÚÜÑ\s]{6,60}?)\s+c[eé]dula/i)
+      || text.match(/([A-ZÁÉÍÓÚÜÑ]+(?:\s+[A-ZÁÉÍÓÚÜÑ]+){2,3})\s+c[eé]dula/i);
     nombre = nomMatch ? nomMatch[1].trim() : '';
-    // Cédula: "cédula No. X-XXXX-XXXX"
     cedula = get(/c[eé]dula\s+No\.?\s*([\d\-]+)/i).replace(/-/g,'');
-    // Monto: ¢X.XXX.XXX o ₡X.XXX.XXX
-    const montoMatch = text.match(/[¢₡]([\d\.,]+)/);
+    referencia = get(/Oficio[:\s]+([^\n\r,]+)/i).trim() || get(/No\.\s*(\d{3}-\d{4}[^\s,]*)/i).trim();
+    const montoMatch = text.match(/[¢₡¡]([\d\.,]+)/);
     if (montoMatch) montoAseg = parseMonto(montoMatch[1]);
-    // IBAN
-    iban = get(/Cuenta\s+bancaria[:\s]+(CR[\d]+)/i);
-    // Fecha carta
+    iban = get(/Cuenta\s+bancaria[:\s]+(CR[\d\s]+)/i).replace(/\s+/g,'');
     const fechaCartaMatch = text.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
     if (fechaCartaMatch) {
       const meses={enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',
         julio:'07',agosto:'08',septiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'};
-      const mes = meses[(fechaCartaMatch[2]||'').toLowerCase()]||'01';
-      fechaEv = `${fechaCartaMatch[3]}-${mes}-${fechaCartaMatch[1].padStart(2,'0')}`;
+      const mesNum = meses[(fechaCartaMatch[2]||'').toLowerCase()]||'01';
+      fechaPres = `${fechaCartaMatch[3]}-${mesNum}-${fechaCartaMatch[1].padStart(2,'0')}`;
+      anno = parseInt(fechaCartaMatch[3]);
     }
-    // Cobertura por tipo de reclamo
     if (/invalidez|BITP/i.test(text)) cobertura = 'Pago Adelantado BITP';
     else if (/muerte acc|desm|DID/i.test(text)) cobertura = 'Muerte Acc. Y Desm (DID)';
     else if (/muerte|fallec/i.test(text)) cobertura = 'Cob. Muerte';
@@ -1050,7 +1048,9 @@ async function parsePdf(input) {
     if (referencia) document.getElementById('f-ref').value = referencia;
     if (nombre) document.getElementById('f-nombre').value = nombre.trim();
     if (cedula) document.getElementById('f-cedula').value = cedula;
+    if (fechaPres) document.getElementById('f-fecha-pres').value = fechaPres;
     if (fechaEv) document.getElementById('f-fecha-ev').value = fechaEv;
+    if (anno) document.getElementById('f-anno').value = anno;
     if (fechaPago) {
       document.getElementById('f-fecha-pago').value = fechaPago;
       selectStatus('Pagada');
@@ -1254,6 +1254,7 @@ function exportPDF() {
   const data = claims.filter(c => c.anno === statsYear);
   const totalInd = data.reduce((s,c)=>s+(c.montoInd||0),0);
   const totalCasos = data.length;
+  const pagadas = data.filter(c=>c.estado==='Pagada').length;
   const cobMap = {};
   data.forEach(c => { cobMap[c.cobertura] = (cobMap[c.cobertura]||0) + (c.montoInd||0); });
   const top5 = [...data].sort((a,b)=>(b.montoInd||0)-(a.montoInd||0)).slice(0,5);
@@ -1261,18 +1262,21 @@ function exportPDF() {
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 18;
   let y = 18;
+  // Usar formato en-US para evitar separadores no compatibles con Helvetica
+  const fmtP = n => Number(n).toLocaleString('en-US');
+  const col = n => 'c/' + fmtP(n);
 
   // ── HEADER ──
   doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, pageW, 32, 'F');
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold');
-  doc.setFontSize(16);
-  doc.text('RECLAMOS COLECTIVOS — Póliza 0101 VTM 805', margin, 13);
+  doc.setFontSize(15);
+  doc.text('RECLAMOS COLECTIVOS - Poliza 0101 VTM 805', margin, 13);
   doc.setFont('helvetica','normal');
   doc.setFontSize(9);
   doc.setTextColor(148,163,184);
-  doc.text('Asociación Cultural y Educativa para la Policía  |  Reporte Anual ' + statsYear, margin, 21);
+  doc.text('Asoc. Cultural y Educativa para la Policia  |  Reporte Anual ' + statsYear, margin, 21);
   doc.text('Generado: ' + new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'long',year:'numeric'}), pageW-margin, 21, {align:'right'});
   y = 42;
 
@@ -1284,10 +1288,10 @@ function exportPDF() {
   y += 8;
 
   const boxes = [
-    {label:'Total de Casos', val: String(totalCasos)},
-    {label:'Total Indemnizado', val:'₡'+fmt(totalInd)},
-    {label:'Pago Adelantado BITP', val:'₡'+fmt(cobMap['Pago Adelantado BITP']||0)},
-    {label:'Cobertura Muerte', val:'₡'+fmt((cobMap['Cob. Muerte']||0)+(cobMap['Muerte Acc. Y Desm (DID)']||0))},
+    {label:'Total de Casos', val: totalCasos + ' (' + pagadas + ' pagados)'},
+    {label:'Total Indemnizado', val: col(totalInd)},
+    {label:'Pago Adelantado BITP', val: col(cobMap['Pago Adelantado BITP']||0)},
+    {label:'Cobertura Muerte', val: col((cobMap['Cob. Muerte']||0)+(cobMap['Muerte Acc. Y Desm (DID)']||0))},
   ];
   const boxW = (pageW - 2*margin - 9) / 4;
   boxes.forEach((b,i) => {
@@ -1301,67 +1305,70 @@ function exportPDF() {
     doc.setFont('helvetica','bold');
     doc.setFontSize(10);
     doc.setTextColor(15,23,42);
-    doc.text(b.val, x+4, y+14);
+    doc.text(String(b.val), x+4, y+14);
   });
   y += 26;
 
-  // ── DISTRIBUCIÓN POR COBERTURA ──
+  // ── GRÁFICOS ──
+  try {
+    const cvCob = document.getElementById('chart-cob');
+    const cvMonto = document.getElementById('chart-monto');
+    if (cvCob && cvMonto) {
+      const cw = (pageW - 2*margin - 6) / 2;
+      const ch = 58;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(15,23,42);
+      doc.text('Distribucion por Cobertura', margin, y);
+      doc.text('Distribucion por Monto', margin + cw + 6, y);
+      y += 3;
+      doc.addImage(cvCob.toDataURL('image/png',1.0), 'PNG', margin, y, cw, ch);
+      doc.addImage(cvMonto.toDataURL('image/png',1.0), 'PNG', margin+cw+6, y, cw, ch);
+      y += ch + 8;
+    }
+  } catch(e) { y += 4; }
+
+  // ── DISTRIBUCIÓN POR COBERTURA (barras) ──
   doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(15,23,42);
-  doc.text('Distribución por Cobertura', margin, y);
+  doc.text('Detalle por cobertura', margin, y);
   y += 6;
 
   const cobColors = { 'Pago Adelantado BITP':[14,165,233], 'Cob. Muerte':[5,150,105], 'Muerte Acc. Y Desm (DID)':[124,58,237] };
   Object.entries(cobMap).forEach(([cob, monto]) => {
     const pct = totalInd > 0 ? (monto/totalInd*100).toFixed(1) : '0.0';
-    const barW = totalInd > 0 ? (monto/totalInd) * (pageW - 2*margin - 30) : 0;
-    const col = cobColors[cob] || [100,116,139];
-    doc.setFillColor(...col);
-    doc.roundedRect(margin, y, barW, 7, 1, 1, 'F');
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(8);
-    doc.setTextColor(15,23,42);
-    doc.text(`${cob} — ₡${fmt(monto)} (${pct}%)`, margin + barW + 3, y + 5);
+    const barW = totalInd > 0 ? (monto/totalInd) * (pageW - 2*margin - 35) : 0;
+    const clr = cobColors[cob] || [100,116,139];
+    doc.setFillColor(...clr);
+    doc.roundedRect(margin, y, Math.max(barW,2), 7, 1, 1, 'F');
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(15,23,42);
+    doc.text(`${cob} - ${col(monto)} (${pct}%)`, margin + Math.max(barW,2) + 3, y + 5);
     y += 11;
   });
-  y += 6;
+  y += 4;
 
   // ── TOP 5 ──
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
-  doc.setTextColor(15,23,42);
-  doc.text('🏆 Top 5 Casos — Monto Más Alto', margin, y);
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(15,23,42);
+  doc.text('Top 5 Casos - Monto Mas Alto', margin, y);
   y += 4;
 
   doc.autoTable({
     startY: y,
     margin: {left: margin, right: margin},
-    head: [['#','Asegurado','Nº de Caso','Cobertura','Mes','Monto Pagado']],
-    body: top5.map((c,i) => [
-      i+1,
-      capitalName(c.nombre),
-      c.numero,
-      c.cobertura,
-      c.mes||'—',
-      '₡'+fmt(c.montoInd||0)
-    ]),
+    head: [['#','Asegurado','No. de Caso','Cobertura','Mes','Monto Pagado']],
+    body: top5.map((c,i) => [i+1, capitalName(c.nombre), c.numero, c.cobertura, c.mes||'-', col(c.montoInd||0)]),
     headStyles:{fillColor:[15,23,42],textColor:255,fontStyle:'bold',fontSize:8},
     bodyStyles:{fontSize:8,textColor:[30,41,59]},
     alternateRowStyles:{fillColor:[248,250,252]},
     columnStyles:{0:{cellWidth:8,halign:'center'},5:{halign:'right',fontStyle:'bold',textColor:[5,150,105]}},
   });
-  y = doc.lastAutoTable.finalY + 10;
 
   // ── DETALLE COMPLETO ──
   doc.addPage();
-  y = 18;
   doc.setFillColor(15,23,42);
   doc.rect(0,0,pageW,16,'F');
   doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(11);
-  doc.text('Detalle Completo de Reclamos — ' + statsYear, margin, 11);
+  doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  doc.text('Detalle Completo de Reclamos - ' + statsYear, margin, 11);
 
   const mesesOrder = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   const sorted = [...data].sort((a,b) => (mesesOrder.indexOf(a.mes)-mesesOrder.indexOf(b.mes)) || 0);
@@ -1369,45 +1376,32 @@ function exportPDF() {
   doc.autoTable({
     startY: 22,
     margin: {left: margin, right: margin},
-    head: [['Asegurado','Cédula','Nº de Caso','Cobertura','Mes','Mto. Asegurado','Mto. Pagado','Estado']],
+    head: [['Asegurado','Cedula','No. de Caso','Cobertura','Mes','Mto. Aseg. (c/)','Mto. Pagado (c/)','Estado']],
     body: sorted.map(c => [
-      capitalName(c.nombre),
-      c.cedula||'—',
-      c.numero,
-      c.cobertura,
-      c.mes||'—',
-      '₡'+fmt(c.montoAseg||0),
-      '₡'+fmt(c.montoInd||0),
-      c.estado
+      capitalName(c.nombre), c.cedula||'-', c.numero, c.cobertura, c.mes||'-',
+      fmtP(c.montoAseg||0), fmtP(c.montoInd||0), c.estado
     ]),
     headStyles:{fillColor:[15,23,42],textColor:255,fontStyle:'bold',fontSize:7},
     bodyStyles:{fontSize:7,textColor:[30,41,59]},
     alternateRowStyles:{fillColor:[248,250,252]},
-    columnStyles:{
-      6:{halign:'right',textColor:[5,150,105],fontStyle:'bold'},
-      7:{halign:'center'}
-    },
-    didDrawCell: (hookData) => {
-      if (hookData.column.index === 7 && hookData.section === 'body') {
-        const est = hookData.cell.raw;
-        const colors = {Pagada:[5,150,105],Presentado:[37,99,235],'En Ajuste':[217,119,6],Declinado:[220,38,38],'Apelación':[124,58,237]};
-        const col = colors[est]||[100,116,139];
-        doc.setTextColor(...col);
+    columnStyles:{6:{halign:'right',textColor:[5,150,105],fontStyle:'bold'},7:{halign:'center'}},
+    didDrawCell: (hd) => {
+      if (hd.column.index === 7 && hd.section === 'body') {
+        const colorsEst = {Pagada:[5,150,105],Presentado:[37,99,235],'En Ajuste':[217,119,6],Declinado:[220,38,38],'Apelación':[124,58,237]};
+        doc.setTextColor(...(colorsEst[hd.cell.raw]||[100,116,139]));
       }
     }
   });
 
-  // Footer
   const totalPages = doc.internal.getNumberOfPages();
   for (let p=1;p<=totalPages;p++) {
     doc.setPage(p);
-    doc.setFontSize(7.5);
-    doc.setTextColor(148,163,184);
-    doc.text(`Póliza 0101 VTM 805 — Seguros del INS — Página ${p} de ${totalPages}`, pageW/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
+    doc.setFontSize(7.5); doc.setTextColor(148,163,184);
+    doc.text(`Poliza 0101 VTM 805 - Seguros del INS - Pagina ${p} de ${totalPages}`, pageW/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
   }
 
   doc.save(`Reporte_Reclamos_VTM805_${statsYear}.pdf`);
-  showToast('📄 Reporte descargado correctamente','#059669');
+  showToast('Reporte PDF descargado','#059669');
 }
 
 // ===================== START =====================
