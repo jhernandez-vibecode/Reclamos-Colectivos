@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <path d="M100 30 L165 170 L130 170 L100 100 Z" fill="#1a9cd6"/>
+  <path d="M55 170 C 90 150, 110 130, 100 30 L 100 100 L 75 170 Z" fill="#1a9cd6" opacity="0.85"/>
+  <text x="100" y="188" font-family="'Outfit', sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" fill="#9ca3af">ACEPO</text>
+</svg>

@@ -35,11 +35,13 @@ body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);dis
 }
 .header-left{display:flex;align-items:center;gap:14px;}
 .logo-icon{
-  width:36px;height:36px;border-radius:9px;
-  background:linear-gradient(135deg,#0ea5e9,#6366f1);
-  display:flex;align-items:center;justify-content:center;font-size:17px;
-  flex-shrink:0;
+  width:44px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#e0f2fe,#cffafe);
+  border:1px solid rgba(14,165,233,.25);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;padding:4px;
 }
+.logo-icon img{max-height:100%;max-width:100%;object-fit:contain;}
 .logo-text{font-family:'Outfit',sans-serif;}
 .logo-text h1{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.2px;}
 .logo-text span{font-size:11px;color:var(--text2);display:block;margin-top:1px;}
@@ -446,10 +448,10 @@ select.form-input option{background:#fff;}
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
-    <div class="logo-icon">🛡️</div>
+    <div class="logo-icon" title="ACEPO"><img src="acepo-logo.svg" alt="ACEPO"></div>
     <div class="logo-text">
       <h1>Reclamos Colectivos</h1>
-      <span>Seguros del INS — Gestión de Vida Colectiva</span>
+      <span>ACEPO — Gestión de Vida Colectiva</span>
     </div>
     <div class="poliza-badge" id="header-poliza-badge">VTM 805</div>
   </div>
@@ -573,12 +575,12 @@ select.form-input option{background:#fff;}
         <div class="year-tab" onclick="setStatsYear(2027,this)">2027</div>
       </div>
       <div class="stats-cards" id="stats-cards"></div>
-      <div class="charts-row">
-        <div class="chart-card">
+      <div class="charts-row" id="charts-row">
+        <div class="chart-card" id="chart-card-cob">
           <div class="chart-title">Distribución por Cobertura</div>
           <div class="chart-wrap"><canvas id="chart-cob"></canvas></div>
         </div>
-        <div class="chart-card">
+        <div class="chart-card" id="chart-card-monto">
           <div class="chart-title">Distribución por Monto Asegurado</div>
           <div class="chart-wrap"><canvas id="chart-monto"></canvas></div>
         </div>
@@ -1440,26 +1442,39 @@ function renderStats(year) {
     </div>
   `;
 
-  // Pie 1 — por cobertura
+  // Pie 1 — por cobertura (solo si hay mas de 1 cobertura)
   const cobLabels = Object.keys(cobMap);
   const cobVals = cobLabels.map(k=>cobMap[k]);
   const colors1 = ['#0ea5e9','#059669','#7c3aed','#d97706','#dc2626'];
-  if (chartCob) chartCob.destroy();
-  chartCob = new Chart(document.getElementById('chart-cob'),{
-    type:'doughnut',
-    data:{labels:cobLabels,datasets:[{data:cobVals,backgroundColor:colors1,borderWidth:2,borderColor:'#fff',hoverOffset:8}]},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{position:'bottom',labels:{color:'#475569',font:{family:'DM Sans',size:12},padding:16}},
-        tooltip:{callbacks:{label:ctx=>`₡${fmt(ctx.raw)}`}}
-      },
-      cutout:'65%'
-    }
-  });
+  const cardCob = document.getElementById('chart-card-cob');
+  if (cobLabels.length <= 1) {
+    if (chartCob) { chartCob.destroy(); chartCob = null; }
+    if (cardCob) cardCob.style.display = 'none';
+  } else {
+    if (cardCob) cardCob.style.display = '';
+    if (chartCob) chartCob.destroy();
+    chartCob = new Chart(document.getElementById('chart-cob'),{
+      type:'doughnut',
+      data:{labels:cobLabels,datasets:[{data:cobVals,backgroundColor:colors1,borderWidth:2,borderColor:'#fff',hoverOffset:8}]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{position:'bottom',labels:{color:'#475569',font:{family:'DM Sans',size:12},padding:16}},
+          tooltip:{callbacks:{label:ctx=>`₡${fmt(ctx.raw)}`}}
+        },
+        cutout:'65%'
+      }
+    });
+  }
 
-  // Pie 2 — por monto asegurado (valores fijos de la póliza activa)
+  // Pie 2 — por monto asegurado (solo si la poliza tiene mas de 1 monto)
   const montosPoliza = POLIZAS[polizaActiva].montos;
+  const cardMonto = document.getElementById('chart-card-monto');
+  if (montosPoliza.length <= 1) {
+    if (chartMonto) { chartMonto.destroy(); chartMonto = null; }
+    if (cardMonto) cardMonto.style.display = 'none';
+  } else {
+    if (cardMonto) cardMonto.style.display = '';
   const ranges = {};
   const fmtMonto = v => {
     if (v >= 1000000) return '₡' + (v/1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + 'M';
@@ -1488,6 +1503,7 @@ function renderStats(year) {
       cutout:'65%'
     }
   });
+  }
 
   // Top 5
   const top5 = [...data].sort((a,b)=>(b.montoInd||0)-(a.montoInd||0)).slice(0,5);
@@ -1528,7 +1544,8 @@ function showToast(msg, color='#10b981') {
 
 // ===================== EXPORT PDF =====================
 function exportExcel() {
-  const data = claims.filter(c => c.anno === statsYear);
+  const data = claimsDePoliza().filter(c => c.anno === statsYear);
+  const polizaKey = polizaActiva.replace(/\s+/g,'');
   const mesesOrder = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   const sorted = [...data].sort((a,b) => (mesesOrder.indexOf(a.mes)-mesesOrder.indexOf(b.mes)) || 0);
 
@@ -1559,15 +1576,17 @@ function exportExcel() {
   });
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Reclamos ' + statsYear);
-  XLSX.writeFile(wb, `Reporte_Reclamos_VTM805_${statsYear}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, `Reclamos ${polizaActiva} ${statsYear}`.slice(0,31));
+  XLSX.writeFile(wb, `Reporte_Reclamos_${polizaKey}_${statsYear}.xlsx`);
   showToast('📊 Excel descargado correctamente','#059669');
 }
 
 function exportPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-  const data = claims.filter(c => c.anno === statsYear);
+  const data = claimsDePoliza().filter(c => c.anno === statsYear);
+  const polizaKey = polizaActiva.replace(/\s+/g,'');
+  const polizaNombre = POLIZAS[polizaActiva]?.nombre || '';
   const totalInd = data.reduce((s,c)=>s+(c.montoInd||0),0);
   const totalCasos = data.length;
   const pagadas = data.filter(c=>c.estado==='Pagada').length;
@@ -1588,11 +1607,11 @@ function exportPDF() {
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold');
   doc.setFontSize(15);
-  doc.text('RECLAMOS COLECTIVOS - Poliza 0101 VTM 805', margin, 13);
+  doc.text(`RECLAMOS COLECTIVOS - Poliza 0101 ${polizaActiva}`, margin, 13);
   doc.setFont('helvetica','normal');
   doc.setFontSize(9);
   doc.setTextColor(148,163,184);
-  doc.text('Asoc. Cultural y Educativa para la Policia  |  Reporte Anual ' + statsYear, margin, 21);
+  doc.text(`ACEPO - ${polizaNombre}  |  Reporte Anual ${statsYear}`, margin, 21);
   doc.text('Generado: ' + new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'long',year:'numeric'}), pageW-margin, 21, {align:'right'});
   y = 42;
 
@@ -1629,7 +1648,9 @@ function exportPDF() {
   try {
     const cvCob = document.getElementById('chart-cob');
     const cvMonto = document.getElementById('chart-monto');
-    if (cvCob && cvMonto) {
+    const multiMonto = POLIZAS[polizaActiva].montos.length > 1;
+    const multiCob = Object.keys(cobMap).length > 1;
+    if (cvCob && multiMonto && multiCob && cvMonto) {
       const cw = (pageW - 2*margin - 6) / 2;
       const ch = 58;
       doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(15,23,42);
@@ -1638,6 +1659,14 @@ function exportPDF() {
       y += 3;
       doc.addImage(cvCob.toDataURL('image/png',1.0), 'PNG', margin, y, cw, ch);
       doc.addImage(cvMonto.toDataURL('image/png',1.0), 'PNG', margin+cw+6, y, cw, ch);
+      y += ch + 8;
+    } else if (cvCob && multiCob) {
+      const cw = pageW - 2*margin;
+      const ch = 58;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(15,23,42);
+      doc.text('Distribucion por Cobertura', margin, y);
+      y += 3;
+      doc.addImage(cvCob.toDataURL('image/png',1.0), 'PNG', margin, y, cw, ch);
       y += ch + 8;
     }
   } catch(e) { y += 4; }
@@ -1713,10 +1742,10 @@ function exportPDF() {
   for (let p=1;p<=totalPages;p++) {
     doc.setPage(p);
     doc.setFontSize(7.5); doc.setTextColor(148,163,184);
-    doc.text(`Poliza 0101 VTM 805 - Seguros del INS - Pagina ${p} de ${totalPages}`, pageW/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
+    doc.text(`Poliza 0101 ${polizaActiva} - Seguros del INS - Pagina ${p} de ${totalPages}`, pageW/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
   }
 
-  doc.save(`Reporte_Reclamos_VTM805_${statsYear}.pdf`);
+  doc.save(`Reporte_Reclamos_${polizaKey}_${statsYear}.pdf`);
   showToast('Reporte PDF descargado','#059669');
 }
 
