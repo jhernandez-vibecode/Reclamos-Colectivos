@@ -1,23 +1,27 @@
 ---
 name: especialista-en-reclamos-colectivos
 description: >
-  Especialista en Reclamos-Colectivos VTM 805 — web app single-file para
-  seguimiento de reclamos de vida colectiva INS (Asoc. Cultural y Educativa
-  para la Policía, ACEPO). Usar cuando Juan Carlos pida cualquier cambio,
-  mejora o corrección en el sistema. Leer COMPLETO antes de escribir código.
-  Entregar cambios ya pusheados a main (auto-deploy Netlify) o código
-  completo en conversación si JC lo pide para copiar/pegar.
+  Especialista en Reclamos-Colectivos ACEPO — web app single-file para
+  seguimiento de reclamos de vida colectiva INS (3 pólizas: VTM 805 colectiva
+  variable 2-10M, VTM 704 fija 15M, VTM 703 fija 400K). Usar cuando Juan
+  Carlos pida cualquier cambio, mejora o corrección en el sistema. Leer
+  COMPLETO antes de escribir código. Entregar cambios ya pusheados a main
+  (auto-deploy Netlify) o código completo en conversación si JC lo pide
+  para copiar/pegar.
 ---
 
-# Reclamos-Colectivos VTM 805 — SKILL estructurado (estado vigente)
+# Reclamos-Colectivos ACEPO — SKILL estructurado (estado vigente)
 
 > Este archivo es **estado vigente**, no un log histórico. Los checkpoints cronológicos viven en `git log` y en la memoria (`~/.claude/projects/.../memory/project_reclamos_colectivos.md`). Actualizar las secciones de abajo cada vez que cambie el estado — no añadir log de commits aquí.
 
-**Última actualización:** 23 abril 2026 NOCHE — compresión automática PDF + reporte de pago
-**Último commit main:** `6813bcf` Compresión automática de PDF al adjuntar reporte de pago
+**Última actualización:** 24 abril 2026 MADRUGADA — soporte multi-póliza (VTM 805 / 704 / 703)
+**Último commit main:** `88fc4ef` Agregar soporte multi-poliza: VTM 805 / VTM 704 / VTM 703
 **Repo GitHub:** https://github.com/jhernandez-vibecode/Reclamos-Colectivos
 **Dominio público:** Netlify auto-deploy desde `main` (URL por confirmar)
-**Póliza:** VTM 805 · Asociación Cultural y Educativa para la Policía (ACEPO)
+**Pólizas ACEPO (tomador 3002056545):**
+- **VTM 805** · Muerte Colectiva Policía · montos fijos ₡2/4/6/8/10M · 34 casos seed (31 de 2025 + 3 de 2026)
+- **VTM 704** · Muerte Fija ₡15M · monto único · 0 casos (sin data aún)
+- **VTM 703** · Muerte Fija ₡400K · monto único · 12 casos seed (2025)
 
 ---
 
@@ -69,9 +73,29 @@ Badges con fondo pastel + texto saturado. Contador de días ⏱ solo activo en e
 | `renderStats(year)` | ~1134 | Summary cards + 2 charts + top-5. Chart 2 agrupa por monto asegurado exacto (2M/4M/6M/8M/10M/Otro), oculta categorías vacías. |
 | `exportExcel()` / `exportPDF()` | ~1247 / ~1295 | Descarga reportes. PDF usa `c/` prefix en lugar de `₡` (jsPDF Helvetica no soporta U+20A1). Números en `en-US` locale. Incluye pie charts como PNG. |
 
-### Montos asegurados (fijos de la póliza colectiva)
+### Montos asegurados (dinámicos por póliza activa)
 
-Select con opciones: **₡2 000 000 · ₡4 000 000 · ₡6 000 000 · ₡8 000 000 · ₡10 000 000** + fallback "otro" si PDF importa valor distinto.
+El select se reconstruye al cambiar de tab (`rebuildMontoSelect()`):
+
+- **VTM 805**: ₡2M / ₡4M / ₡6M / ₡8M / ₡10M (colectiva variable)
+- **VTM 704**: ₡15 000 000 (fijo, auto-selecciona)
+- **VTM 703**: ₡400 000 (fijo, auto-selecciona)
+
+Fallback "otro" si un PDF importa un valor distinto — `setMontoAseg(val)` crea la opción dinámica.
+
+### Selector de póliza (tabs superiores)
+
+Estado global `polizaActiva` (default `'VTM 805'`). Al cambiar: `setPolizaActiva(p, el)` actualiza tabs, sidebar (`#sidebar-poliza-info`), header badge (`#header-poliza-badge`), reconstruye monto select, llama `renderAll()`. Todos los renders (`claimsDePoliza()`, `updateCounts()`, `renderCards()`, `renderStats()`) filtran por `polizaActiva`. Records sin `poliza` se asumen `'VTM 805'` (retrocompat).
+
+Config en `POLIZAS` object (línea ~772 `app.html`):
+
+```js
+const POLIZAS = {
+  'VTM 805': { nombre:'Muerte Colectiva Policía', montos:[2000000,4000000,6000000,8000000,10000000], tomador:'3002056545', moneda:'CRC' },
+  'VTM 704': { nombre:'Muerte Fija ₡15M', montos:[15000000], tomador:'3002056545', moneda:'CRC' },
+  'VTM 703': { nombre:'Muerte Fija ₡400K', montos:[400000], tomador:'3002056545', moneda:'CRC' },
+};
+```
 
 ### Coberturas
 
@@ -103,7 +127,8 @@ claim = {
   cedula: '204590955',
   anno: 2025,                          // editable free-form
   cobertura: 'Pago Adelantado BITP',
-  montoAseg: 10000000,                 // valores fijos de la colectiva
+  poliza: 'VTM 805',                   // 'VTM 805' | 'VTM 704' | 'VTM 703' (default 805 si falta)
+  montoAseg: 10000000,                 // montos fijos segun poliza (805: 2/4/6/8/10M, 704: 15M, 703: 400K)
   montoInd: 9946334,                   // monto real pagado
   mes: 'ENERO',                        // mes de indemnización
   estado: 'Pagada',                    // Presentado|En Ajuste|Pagada|Declinado|Apelación
@@ -147,7 +172,8 @@ claim = {
 
 - **`setUser()` eliminada** (commit `b1c5ad5`) — ese bug bloqueaba `loadClaims()`. No reintroducir lógica de user/avatar en header.
 - **SDI logo SVG** ya es el oficial (`logo-compacto.svg` copiado del portal). `sdi-logo.jpg` queda de respaldo pero no se usa.
-- **Seed de 34 casos** coexiste en 3 lugares: (a) `SEED_LOCAL` en `app.html` para modo local, (b) array inicializador en `reclamos.mjs` para primera carga de Blobs, (c) Netlify Blobs en producción. Si hay que actualizar, actualizar los tres.
+- **Seed de 46 casos** (34 VTM 805 + 12 VTM 703) coexiste en 3 lugares: (a) `SEED_LOCAL` en `app.html` para modo local, (b) array inicializador en `reclamos.mjs` para primera carga de Blobs, (c) Netlify Blobs en producción. Si hay que actualizar, actualizar los tres. Records VTM 805 legacy no tienen campo `poliza` — el filtro lo asume por default.
+- **Al agregar una nueva póliza:** (1) añadir entry a `POLIZAS` object, (2) añadir tab en HTML `.poliza-tabs`, (3) si tiene seed data, agregarla a `SEED_LOCAL` y `reclamos.mjs` con `poliza:'VTM XXX'`, (4) actualizar SKILL.md y memoria.
 - **Año editable:** `f-anno` es `<input type="number">` libre (no select). Tabs stats muestran 2025/2026/2027 pero la data puede tener cualquier año.
 - **Preview server** (puerto 8798) sirve desde `C:/Users/segur/Downloads/Reclamos-Colectivos` con `npx serve`. Launch config en `.claude/launch.json`.
 
