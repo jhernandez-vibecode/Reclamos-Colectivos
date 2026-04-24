@@ -175,7 +175,7 @@
     Continuar con Google
   </button>
   <div id="error-msg"></div>
-  <p class="note">Acceso exclusivo para usuarios <strong>@segurosdelins.com</strong></p>
+  <p class="note" id="note-text">Acceso exclusivo para usuarios <strong>@segurosdelins.com</strong></p>
 </div>
 
 <div id="loading-overlay">
@@ -188,46 +188,57 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
-  firebase.initializeApp(FIREBASE_CONFIG);
-  const auth = firebase.auth();
-
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({ hd: 'segurosdelins.com' });
+  const DEMO_MODE = FIREBASE_CONFIG.apiKey === 'FIREBASE_API_KEY';
 
   const btnLogin = document.getElementById('btn-login');
   const errorMsg = document.getElementById('error-msg');
-  const overlay = document.getElementById('loading-overlay');
+  const overlay  = document.getElementById('loading-overlay');
+  const noteText = document.getElementById('note-text');
 
-  function showError(msg) {
-    errorMsg.textContent = msg;
-    errorMsg.style.display = 'block';
+  if (DEMO_MODE) {
+    // Sin Firebase configurado → acceso directo al demo
+    noteText.innerHTML = '⚡ <strong style="color:var(--cyan)">Modo Demo</strong> — Firebase no configurado aún';
+    btnLogin.addEventListener('click', () => {
+      overlay.classList.add('show');
+      window.location.href = 'app.html';
+    });
+  } else {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ hd: 'segurosdelins.com' });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = 'block';
+    }
+
+    btnLogin.addEventListener('click', async () => {
+      errorMsg.style.display = 'none';
+      try {
+        const result = await auth.signInWithPopup(provider);
+        const email = result.user.email;
+        if (!email.endsWith('@segurosdelins.com')) {
+          await auth.signOut();
+          showError('Acceso denegado. Solo usuarios @segurosdelins.com pueden ingresar.');
+          return;
+        }
+        overlay.classList.add('show');
+        window.location.href = 'app.html';
+      } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user') {
+          showError('Error al iniciar sesión. Intente de nuevo.');
+        }
+      }
+    });
+
+    auth.onAuthStateChanged(user => {
+      if (user && user.email && user.email.endsWith('@segurosdelins.com')) {
+        overlay.classList.add('show');
+        window.location.href = 'app.html';
+      }
+    });
   }
-
-  btnLogin.addEventListener('click', async () => {
-    errorMsg.style.display = 'none';
-    try {
-      const result = await auth.signInWithPopup(provider);
-      const email = result.user.email;
-      if (!email.endsWith('@segurosdelins.com')) {
-        await auth.signOut();
-        showError('Acceso denegado. Solo usuarios @segurosdelins.com pueden ingresar.');
-        return;
-      }
-      overlay.classList.add('show');
-      window.location.href = 'app.html';
-    } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') {
-        showError('Error al iniciar sesión. Intente de nuevo.');
-      }
-    }
-  });
-
-  auth.onAuthStateChanged(user => {
-    if (user && user.email && user.email.endsWith('@segurosdelins.com')) {
-      overlay.classList.add('show');
-      window.location.href = 'app.html';
-    }
-  });
 </script>
 </body>
 </html>
