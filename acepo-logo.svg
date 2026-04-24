@@ -1,5 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-  <path d="M100 30 L165 170 L130 170 L100 100 Z" fill="#1a9cd6"/>
-  <path d="M55 170 C 90 150, 110 130, 100 30 L 100 100 L 75 170 Z" fill="#1a9cd6" opacity="0.85"/>
-  <text x="100" y="188" font-family="'Outfit', sans-serif" font-size="14" font-weight="600" letter-spacing="3" text-anchor="middle" fill="#9ca3af">ACEPO</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 260" fill="none">
+  <!-- Vela derecha: triangulo solido que forma la pata derecha de la A -->
+  <path d="M 130 40 L 210 205 L 150 205 L 130 125 Z" fill="#1a9cd6"/>
+  <!-- Ala izquierda: curva que baja desde el apice y se abre hacia abajo-izquierda -->
+  <path d="M 130 40 C 128 110, 108 160, 60 205 L 145 205 C 145 205, 142 175, 130 125 Z" fill="#1a9cd6"/>
+  <!-- Texto ACEPO -->
+  <text x="130" y="238" font-family="'Outfit','Segoe UI',sans-serif" font-size="30" font-weight="500" letter-spacing="10" text-anchor="middle" fill="#9ca3af">ACEPO</text>
+  <!-- Tagline -->
+  <text x="130" y="253" font-family="'DM Sans','Segoe UI',sans-serif" font-size="7" font-weight="400" letter-spacing="0.8" text-anchor="middle" fill="#9ca3af">TRANQUILIDAD PARA USTED. SEGURIDAD PARA ELLOS.</text>
 </svg>

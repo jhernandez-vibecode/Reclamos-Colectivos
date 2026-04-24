@@ -35,13 +35,14 @@ body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);dis
 }
 .header-left{display:flex;align-items:center;gap:14px;}
 .logo-icon{
-  width:44px;height:40px;border-radius:10px;
-  background:linear-gradient(135deg,#e0f2fe,#cffafe);
-  border:1px solid rgba(14,165,233,.25);
+  height:46px;border-radius:12px;
+  background:#ffffff;
+  border:1px solid rgba(0,76,69,.2);
   display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;padding:4px;
+  flex-shrink:0;padding:6px 14px;
+  box-shadow:0 2px 8px rgba(0,76,69,.15), 0 0 0 3px rgba(0,76,69,.06);
 }
-.logo-icon img{max-height:100%;max-width:100%;object-fit:contain;}
+.logo-icon img{max-height:100%;width:auto;object-fit:contain;display:block;}
 .logo-text{font-family:'Outfit',sans-serif;}
 .logo-text h1{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.2px;}
 .logo-text span{font-size:11px;color:var(--text2);display:block;margin-top:1px;}
@@ -448,7 +449,7 @@ select.form-input option{background:#fff;}
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
-    <div class="logo-icon" title="ACEPO"><img src="acepo-logo.svg" alt="ACEPO"></div>
+    <div class="logo-icon" title="Instituto Nacional de Seguros"><img src="ins-logo.png" alt="INS"></div>
     <div class="logo-text">
       <h1>Reclamos Colectivos</h1>
       <span>ACEPO — Gestión de Vida Colectiva</span>
