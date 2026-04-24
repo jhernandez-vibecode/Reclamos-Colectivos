@@ -1000,8 +1000,15 @@ async function parsePdf(input) {
   }
 
   // ── Detectar tipo de documento ──
+  console.log('[PDF] texto extraído (primeros 400):', text.substring(0,400));
+  if (text.trim().length < 20) {
+    showToast('⚠️ El PDF es escaneado y no tiene texto digital. Ingrese datos manualmente.','#f59e0b');
+    input.value = '';
+    return;
+  }
+
   const isLiquidacion = /Reporte de Liquidaci/i.test(text);
-  const isReclamo = /reclamo|INDEMNI[ZS]ACION|ACEPO|VTM 805/i.test(text);
+  const isReclamo = /INMDEMNIZACION|INDEMNI[ZS]ACION|ACEPO|VTM\s*805|reclamo.*cobertura/i.test(text);
 
   const get = (pattern) => { const m=text.match(pattern); return m ? m[1].trim() : ''; };
 
@@ -1022,14 +1029,16 @@ async function parsePdf(input) {
     montoInd = parseMonto(get(/Monto a pagar\s+([\d,\.]+)/i));
   } else if (isReclamo) {
     // Carta de apertura ACEPO — "del asegurado (a) APELLIDO NOMBRE cédula No. X-XXXX-XXXX"
-    const nomMatch = text.match(/asegurado\s*\(?a?\)?\s+([A-ZÁÉÍÓÚÜÑ\s]{6,60}?)\s+c[eé]dula/i)
-      || text.match(/([A-ZÁÉÍÓÚÜÑ]+(?:\s+[A-ZÁÉÍÓÚÜÑ]+){2,3})\s+c[eé]dula/i);
-    nombre = nomMatch ? nomMatch[1].trim() : '';
-    cedula = get(/c[eé]dula\s+No\.?\s*([\d\-]+)/i).replace(/-/g,'');
-    referencia = get(/Oficio[:\s]+([^\n\r,]+)/i).trim() || get(/No\.\s*(\d{3}-\d{4}[^\s,]*)/i).trim();
-    const montoMatch = text.match(/[¢₡¡]([\d\.,]+)/);
+    nombre = (
+      text.match(/asegurado\s*\(?a?\)?\s+([A-ZÁÉÍÓÚÜÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÜÑ]{2,}){1,4})\s+c.dula/i) ||
+      text.match(/señor[^\n]{0,15}([A-Z][A-ZÁÉÍÓÚÜÑ]+(?:\s+[A-Z][A-ZÁÉÍÓÚÜÑ]+){2,3})\s+c.dula/i) ||
+      text.match(/([A-Z][A-ZÁÉÍÓÚÜÑ]+(?:\s+[A-Z][A-ZÁÉÍÓÚÜÑ]+){2,3})\s+c.dula\s+No/i)
+    )?.[1]?.trim() || '';
+    cedula = get(/c.dula\s+No\.?\s*([\d\-]+)/i).replace(/-/g,'');
+    referencia = (get(/Oficio[:\s]+([^\n\r,]{4,30})/i) || get(/No\.\s*(\d{3}-\d{4}[^\s,]{0,15})/i)).trim();
+    const montoMatch = text.match(/por\s+[¢₡¡c\/]([\d\.,]+)/i) || text.match(/[¢₡¡]([\d\.,]+)/);
     if (montoMatch) montoAseg = parseMonto(montoMatch[1]);
-    iban = get(/Cuenta\s+bancaria[:\s]+(CR[\d\s]+)/i).replace(/\s+/g,'');
+    iban = (get(/Cuenta\s+bancaria[:\s]+(CR[\d\s]{15,25})/i) || get(/(CR\d{18,22})/)).replace(/\s+/g,'');
     const fechaCartaMatch = text.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i);
     if (fechaCartaMatch) {
       const meses={enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',
@@ -1039,11 +1048,11 @@ async function parsePdf(input) {
       anno = parseInt(fechaCartaMatch[3]);
     }
     if (/invalidez|BITP/i.test(text)) cobertura = 'Pago Adelantado BITP';
-    else if (/muerte acc|desm|DID/i.test(text)) cobertura = 'Muerte Acc. Y Desm (DID)';
+    else if (/muerte\s*acc|desm|DID/i.test(text)) cobertura = 'Muerte Acc. Y Desm (DID)';
     else if (/muerte|fallec/i.test(text)) cobertura = 'Cob. Muerte';
   }
 
-  if (numero || nombre) {
+  if (numero || nombre || cedula || montoAseg) {
     if (numero) document.getElementById('f-numero').value = numero;
     if (referencia) document.getElementById('f-ref').value = referencia;
     if (nombre) document.getElementById('f-nombre').value = nombre.trim();
