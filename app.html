@@ -1742,10 +1742,11 @@ function exportPDF() {
     columnStyles:{0:{cellWidth:8,halign:'center'},5:{halign:'right',fontStyle:'bold',textColor:[5,150,105]}},
   });
 
-  // ── DETALLE COMPLETO ──
-  doc.addPage();
+  // ── DETALLE COMPLETO (landscape para acomodar Asegurado + Afectado) ──
+  doc.addPage('a4','landscape');
+  const pageWL = doc.internal.pageSize.getWidth();
   doc.setFillColor(15,23,42);
-  doc.rect(0,0,pageW,16,'F');
+  doc.rect(0,0,pageWL,16,'F');
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold'); doc.setFontSize(11);
   doc.text('Detalle Completo de Reclamos - ' + statsYear, margin, 11);
@@ -1756,17 +1757,38 @@ function exportPDF() {
   doc.autoTable({
     startY: 22,
     margin: {left: margin, right: margin},
-    head: [['Asegurado','Cedula','No. de Caso','Cobertura','Mes','Mto. Aseg. (c/)','Mto. Pagado (c/)','Estado']],
+    head: [['Asegurado','Ced. Aseg.','Afectado','Ced. Afect.','Vinculo','No. Caso','Cobertura','Mes','Mto. Aseg. (c/)','Mto. Pagado (c/)','Estado']],
     body: sorted.map(c => [
-      capitalName(c.nombre), c.cedula||'-', c.numero, c.cobertura, c.mes||'-',
-      fmtP(c.montoAseg||0), fmtP(c.montoInd||0), c.estado
+      capitalName(c.nombre),
+      c.cedula||'-',
+      c.afectadoNombre ? capitalName(c.afectadoNombre) : '-',
+      c.afectadoCedula||'-',
+      c.afectadoVinculo||'-',
+      c.numero,
+      c.cobertura,
+      c.mes||'-',
+      fmtP(c.montoAseg||0),
+      fmtP(c.montoInd||0),
+      c.estado
     ]),
-    headStyles:{fillColor:[15,23,42],textColor:255,fontStyle:'bold',fontSize:7},
+    headStyles:{fillColor:[15,23,42],textColor:255,fontStyle:'bold',fontSize:7,halign:'center'},
     bodyStyles:{fontSize:7,textColor:[30,41,59]},
     alternateRowStyles:{fillColor:[248,250,252]},
-    columnStyles:{6:{halign:'right',textColor:[5,150,105],fontStyle:'bold'},7:{halign:'center'}},
+    columnStyles:{
+      0:{cellWidth:38},
+      1:{cellWidth:18},
+      2:{cellWidth:38},
+      3:{cellWidth:18},
+      4:{cellWidth:18},
+      5:{cellWidth:24},
+      6:{cellWidth:28},
+      7:{cellWidth:18},
+      8:{halign:'right',cellWidth:22},
+      9:{halign:'right',textColor:[5,150,105],fontStyle:'bold',cellWidth:22},
+      10:{halign:'center',cellWidth:18}
+    },
     didDrawCell: (hd) => {
-      if (hd.column.index === 7 && hd.section === 'body') {
+      if (hd.column.index === 10 && hd.section === 'body') {
         const colorsEst = {Pagada:[5,150,105],Presentado:[37,99,235],'En Ajuste':[217,119,6],Declinado:[220,38,38],'Apelación':[124,58,237]};
         doc.setTextColor(...(colorsEst[hd.cell.raw]||[100,116,139]));
       }
@@ -1776,8 +1798,9 @@ function exportPDF() {
   const totalPages = doc.internal.getNumberOfPages();
   for (let p=1;p<=totalPages;p++) {
     doc.setPage(p);
+    const w = doc.internal.pageSize.getWidth();
     doc.setFontSize(7.5); doc.setTextColor(148,163,184);
-    doc.text(`Poliza 0101 ${polizaActiva} - Seguros del INS - Pagina ${p} de ${totalPages}`, pageW/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
+    doc.text(`Poliza 0101 ${polizaActiva} - Seguros del INS - Pagina ${p} de ${totalPages}`, w/2, doc.internal.pageSize.getHeight()-8, {align:'center'});
   }
 
   doc.save(`Reporte_Reclamos_${polizaKey}_${statsYear}.pdf`);
