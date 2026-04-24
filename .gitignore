@@ -1,0 +1,4 @@
+.claude/launch.json
+node_modules/
+.netlify/
+.env
