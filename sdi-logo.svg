@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 90" role="img" aria-label="SDI">
+  <title>SDI · Logo compacto</title>
+  <desc>Versión compacta del logo SDI sin tagline, para uso en headers, firmas de correo y espacios reducidos.</desc>
+
+  <text x="10" y="74" font-family="'Space Grotesk', 'Inter', sans-serif" font-weight="500" font-size="82" letter-spacing="-2.5" fill="#0369A1">SDI</text>
+
+  <g transform="translate(185, 22)">
+    <rect x="0" y="0" width="30" height="6" rx="1.5" fill="#0369A1"/>
+    <rect x="0" y="10" width="30" height="6" rx="1.5" fill="#0D9488"/>
+    <rect x="0" y="20" width="30" height="6" rx="1.5" fill="#EA580C"/>
+    <rect x="0" y="30" width="30" height="6" rx="1.5" fill="#C9A227"/>
+  </g>
+</svg>
