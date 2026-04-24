@@ -547,7 +547,7 @@ select.form-input option{background:#fff;}
           <div class="chart-wrap"><canvas id="chart-cob"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Distribución por Rango de Monto</div>
+          <div class="chart-title">Distribución por Monto Asegurado</div>
           <div class="chart-wrap"><canvas id="chart-monto"></canvas></div>
         </div>
       </div>
@@ -632,7 +632,14 @@ select.form-input option{background:#fff;}
           </div>
           <div class="form-group">
             <label class="form-label">Monto Asegurado (₡)</label>
-            <input class="form-input" id="f-monto-aseg" type="number" placeholder="0">
+            <select class="form-input" id="f-monto-aseg">
+              <option value="">Seleccionar…</option>
+              <option value="2000000">₡2 000 000</option>
+              <option value="4000000">₡4 000 000</option>
+              <option value="6000000">₡6 000 000</option>
+              <option value="8000000">₡8 000 000</option>
+              <option value="10000000">₡10 000 000</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Monto Indemnizado (₡)</label>
@@ -673,6 +680,21 @@ select.form-input option{background:#fff;}
             <label class="form-label">Observaciones / Notas</label>
             <textarea class="form-input" id="f-notas" rows="3" placeholder="Notas internas del agente…"></textarea>
           </div>
+
+          <div class="form-divider"></div>
+          <div class="form-section-title">Reporte de Pago (Control)</div>
+
+          <div class="form-group full">
+            <div id="reporte-pago-box" style="display:flex;align-items:center;gap:12px;padding:14px;background:rgba(16,185,129,.06);border:1px dashed rgba(16,185,129,.35);border-radius:10px;">
+              <div id="reporte-pago-status" style="flex:1;font-size:13px;color:var(--text2);">
+                Adjunte una copia del reporte de pago (PDF) para control interno.
+              </div>
+              <button type="button" class="btn btn-ghost" id="btn-view-reporte" style="display:none;" onclick="viewReportePago()">👁 Ver</button>
+              <button type="button" class="btn btn-ghost" id="btn-del-reporte" style="display:none;color:#dc2626;" onclick="clearReportePago()">✕ Quitar</button>
+              <button type="button" class="btn btn-primary" onclick="document.getElementById('reporte-pago-input').click()">📎 Adjuntar PDF</button>
+              <input type="file" id="reporte-pago-input" accept=".pdf" style="display:none;" onchange="attachReportePago(this)">
+            </div>
+          </div>
         </div>
       </form>
 
@@ -686,13 +708,16 @@ select.form-input option{background:#fff;}
 
 <!-- ── MODAL PDF VIEWER ── -->
 <div class="modal-overlay" id="pdf-modal">
-  <div class="modal" style="max-width:860px;height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+  <div class="modal" style="max-width:920px;height:92vh;overflow:hidden;display:flex;flex-direction:column;">
     <div class="modal-header" style="flex-shrink:0;">
-      <h3 class="modal-title">Reporte de Liquidación</h3>
-      <button class="modal-close" onclick="document.getElementById('pdf-modal').classList.remove('open')">✕</button>
+      <h3 class="modal-title" id="pdf-modal-title">Reporte de Pago</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a id="pdf-download" class="btn btn-ghost" href="#" download="reporte-pago.pdf" style="padding:8px 14px;font-size:13px;">⬇ Descargar</a>
+        <button class="modal-close" onclick="closePdfModal()">✕</button>
+      </div>
     </div>
-    <div style="padding:0 24px 24px;overflow:auto;flex:1;" id="pdf-canvas-wrap">
-      <canvas id="pdf-canvas"></canvas>
+    <div style="padding:0 24px 24px;overflow:hidden;flex:1;display:flex;">
+      <iframe id="pdf-iframe" style="width:100%;height:100%;border:1px solid var(--border);border-radius:8px;background:#fff;"></iframe>
     </div>
   </div>
 </div>
@@ -860,7 +885,7 @@ function renderCards() {
 function cardHTML(c) {
   const badgeKey = c.estado.replace(/ /g,'').replace('ó','o').replace('é','e');
   const daysHtml = daysInfo(c);
-  const hasPdf = c.pdfUrl ? `<div class="pdf-indicator" onclick="viewPdf('${c.id}')" title="Ver PDF">📄</div>` : '';
+  const hasPdf = c.reportePago ? `<div class="pdf-indicator" onclick="viewPdf('${c.id}')" title="Ver Reporte de Pago">📄</div>` : '';
   const monto = c.estado==='Pagada' && c.montoInd ?
     `<span class="amount-value pagada">₡${fmt(c.montoInd)}</span>` :
     `<span class="amount-value">₡${fmt(c.montoAseg||0)}</span>`;
@@ -936,8 +961,73 @@ function openModal(id) {
     document.getElementById('claim-form').reset();
     document.getElementById('f-fecha-pres').value = new Date().toISOString().split('T')[0];
     selectStatus('Presentado');
+    _pendingReportePago = null;
+    _pendingReporteNombre = '';
+    refreshReportePagoUI();
   }
   document.getElementById('claim-modal').classList.add('open');
+}
+
+// ===================== REPORTE DE PAGO =====================
+let _pendingReportePago = null;
+let _pendingReporteNombre = '';
+
+function refreshReportePagoUI() {
+  const status = document.getElementById('reporte-pago-status');
+  const btnView = document.getElementById('btn-view-reporte');
+  const btnDel = document.getElementById('btn-del-reporte');
+  if (_pendingReportePago) {
+    const kb = Math.round((_pendingReportePago.length * 0.75) / 1024);
+    status.innerHTML = `<strong style="color:#059669;">✓ ${_pendingReporteNombre || 'reporte-pago.pdf'}</strong> <span style="color:var(--text3);">(${kb} KB)</span>`;
+    btnView.style.display = '';
+    btnDel.style.display = '';
+  } else {
+    status.innerHTML = 'Adjunte una copia del reporte de pago (PDF) para control interno.';
+    btnView.style.display = 'none';
+    btnDel.style.display = 'none';
+  }
+  document.getElementById('reporte-pago-input').value = '';
+}
+
+function attachReportePago(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.type !== 'application/pdf') { showToast('⚠️ Solo archivos PDF','#f59e0b'); return; }
+  if (file.size > 4 * 1024 * 1024) { showToast('⚠️ Máximo 4 MB por archivo','#f59e0b'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    _pendingReportePago = e.target.result;
+    _pendingReporteNombre = file.name;
+    refreshReportePagoUI();
+    showToast('✓ Reporte adjuntado — guarde el reclamo para persistir','#10b981');
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearReportePago() {
+  _pendingReportePago = null;
+  _pendingReporteNombre = '';
+  refreshReportePagoUI();
+}
+
+function viewReportePago() {
+  if (!_pendingReportePago) return;
+  openPdfViewer(_pendingReportePago, _pendingReporteNombre || 'reporte-pago.pdf');
+}
+
+function openPdfViewer(dataUrl, filename) {
+  const iframe = document.getElementById('pdf-iframe');
+  const dl = document.getElementById('pdf-download');
+  document.getElementById('pdf-modal-title').textContent = filename || 'Reporte de Pago';
+  iframe.src = dataUrl;
+  dl.href = dataUrl;
+  dl.download = filename || 'reporte-pago.pdf';
+  document.getElementById('pdf-modal').classList.add('open');
+}
+
+function closePdfModal() {
+  document.getElementById('pdf-modal').classList.remove('open');
+  document.getElementById('pdf-iframe').src = 'about:blank';
 }
 
 function closeModal() {
@@ -952,7 +1042,7 @@ function fillForm(c) {
   document.getElementById('f-cedula').value = c.cedula||'';
   document.getElementById('f-anno').value = c.anno||2026;
   document.getElementById('f-cobertura').value = c.cobertura||'';
-  document.getElementById('f-monto-aseg').value = c.montoAseg||'';
+  setMontoAseg(c.montoAseg||'');
   document.getElementById('f-monto-ind').value = c.montoInd||'';
   document.getElementById('f-mes').value = c.mes||'';
   document.getElementById('f-fecha-pres').value = c.fechaPres||'';
@@ -961,6 +1051,21 @@ function fillForm(c) {
   document.getElementById('f-iban').value = c.iban||'';
   document.getElementById('f-notas').value = c.notas||'';
   selectStatus(c.estado||'Presentado');
+  _pendingReportePago = c.reportePago || null;
+  _pendingReporteNombre = c.reportePagoNombre || '';
+  refreshReportePagoUI();
+}
+
+function setMontoAseg(val) {
+  const sel = document.getElementById('f-monto-aseg');
+  const v = val ? String(val) : '';
+  if (v && !Array.from(sel.options).some(o => o.value === v)) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = '₡' + Number(v).toLocaleString('es-CR') + ' (otro)';
+    sel.appendChild(opt);
+  }
+  sel.value = v;
 }
 
 function selectStatus(s) {
@@ -990,6 +1095,8 @@ async function saveClaim() {
     fechaPago: document.getElementById('f-fecha-pago').value,
     iban: document.getElementById('f-iban').value.trim(),
     notas: document.getElementById('f-notas').value.trim(),
+    reportePago: _pendingReportePago || null,
+    reportePagoNombre: _pendingReporteNombre || '',
   };
 
   if (editingId) {
@@ -1092,7 +1199,7 @@ async function parsePdf(input) {
     if (cobertura) document.getElementById('f-cobertura').value =
       cobertura.includes('BITP') ? 'Pago Adelantado BITP' :
       cobertura.includes('Muerte Acc') ? 'Muerte Acc. Y Desm (DID)' : 'Cob. Muerte';
-    if (montoAseg) document.getElementById('f-monto-aseg').value = montoAseg;
+    if (montoAseg) setMontoAseg(montoAseg);
     if (montoInd) document.getElementById('f-monto-ind').value = montoInd;
     document.getElementById('extracted-notice').style.display = 'block';
     showToast('📄 Datos extraídos del PDF','#00d4ff');
@@ -1116,11 +1223,13 @@ function parseMonto(s) {
   return parseFloat(s.replace(/[,\.]/g,'').replace(/(\d+)(\d{2})$/,'$1.$2'))||parseFloat(s.replace(/,/g,''))||0;
 }
 
-async function viewPdf(id) {
+function viewPdf(id) {
   const c = claims.find(x=>x.id===id);
-  if (!c || !c.pdfUrl) return;
-  // In real app load from storage
-  document.getElementById('pdf-modal').classList.add('open');
+  if (!c || !c.reportePago) {
+    showToast('⚠️ Sin reporte adjunto','#f59e0b');
+    return;
+  }
+  openPdfViewer(c.reportePago, c.reportePagoNombre || `reporte-${c.numero}.pdf`);
 }
 
 // ===================== STATS =====================
@@ -1182,16 +1291,19 @@ function renderStats(year) {
     }
   });
 
-  // Pie 2 — por rango de monto
-  const ranges = {'< ₡2M':0,'₡2M – ₡5M':0,'₡5M – ₡8M':0,'> ₡8M':0};
+  // Pie 2 — por monto asegurado (valores fijos de la póliza colectiva)
+  const ranges = {'₡2M':0,'₡4M':0,'₡6M':0,'₡8M':0,'₡10M':0,'Otro':0};
   data.forEach(c => {
-    const v = c.montoInd||0;
-    if (v < 2000000) ranges['< ₡2M']++;
-    else if (v < 5000000) ranges['₡2M – ₡5M']++;
-    else if (v < 8000000) ranges['₡5M – ₡8M']++;
-    else ranges['> ₡8M']++;
+    const v = c.montoAseg||0;
+    if (v === 2000000) ranges['₡2M']++;
+    else if (v === 4000000) ranges['₡4M']++;
+    else if (v === 6000000) ranges['₡6M']++;
+    else if (v === 8000000) ranges['₡8M']++;
+    else if (v === 10000000) ranges['₡10M']++;
+    else if (v > 0) ranges['Otro']++;
   });
-  const colors2 = ['#2563eb','#059669','#d97706','#dc2626'];
+  Object.keys(ranges).forEach(k => { if (ranges[k] === 0) delete ranges[k]; });
+  const colors2 = ['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#64748b'];
   if (chartMonto) chartMonto.destroy();
   chartMonto = new Chart(document.getElementById('chart-monto'),{
     type:'doughnut',
