@@ -65,6 +65,13 @@ export default async (req) => {
     if (!claims) {
       claims = SEED;
       await store.set('claims', JSON.stringify(claims));
+    } else {
+      const existingIds = new Set(claims.map(c => c.id));
+      const missing = SEED.filter(s => !existingIds.has(s.id));
+      if (missing.length) {
+        claims = [...missing, ...claims];
+        await store.set('claims', JSON.stringify(claims));
+      }
     }
     return Response.json(claims);
   }
