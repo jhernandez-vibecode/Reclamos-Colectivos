@@ -1582,11 +1582,14 @@ function exportExcel() {
   const sorted = [...data].sort((a,b) => (mesesOrder.indexOf(a.mes)-mesesOrder.indexOf(b.mes)) || 0);
 
   const rows = [
-    ['Asegurado','Cédula','Nº de Caso','Cobertura','Mes','Monto Asegurado','Monto Indemnizado','Estado','Fecha Presentación','Fecha Evento','Fecha Pago']
+    ['Asegurado','Cédula Asegurado','Afectado','Cédula Afectado','Vínculo','Nº de Caso','Cobertura','Mes','Monto Asegurado','Monto Indemnizado','Estado','Fecha Presentación','Fecha Evento','Fecha Pago']
   ];
   sorted.forEach(c => rows.push([
     capitalName(c.nombre),
     c.cedula || '',
+    c.afectadoNombre ? capitalName(c.afectadoNombre) : '',
+    c.afectadoCedula || '',
+    c.afectadoVinculo || '',
     c.numero,
     c.cobertura,
     c.mes || '',
@@ -1599,7 +1602,7 @@ function exportExcel() {
   ]));
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [32,14,18,24,12,18,18,14,16,16,16].map(w=>({wch:w}));
+  ws['!cols'] = [32,14,32,14,14,18,24,12,18,18,14,16,16,16].map(w=>({wch:w}));
 
   const header = rows[0];
   header.forEach((_,i) => {
