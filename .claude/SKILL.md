@@ -14,8 +14,8 @@ description: >
 
 > Este archivo es **estado vigente**, no un log histórico. Los checkpoints cronológicos viven en `git log` y en la memoria (`~/.claude/projects/.../memory/project_reclamos_colectivos.md`). Actualizar las secciones de abajo cada vez que cambie el estado — no añadir log de commits aquí.
 
-**Última actualización:** 24 abril 2026 MADRUGADA — soporte multi-póliza (VTM 805 / 704 / 703)
-**Último commit main:** `88fc4ef` Agregar soporte multi-poliza: VTM 805 / VTM 704 / VTM 703
+**Última actualización:** 25 abril 2026 — datos del afectado + reportes con logo INS
+**Último commit main:** `eb57b95` PDF: detalle completo en landscape con columnas Afectado y Vinculo
 **Repo GitHub:** https://github.com/jhernandez-vibecode/Reclamos-Colectivos
 **Dominio público:** Netlify auto-deploy desde `main` (URL por confirmar)
 **Pólizas ACEPO (tomador 3002056545):**
@@ -44,7 +44,7 @@ description: >
 |---|---|---|
 | `#section-reclamos` | ✅ estable | Grid de tarjetas + chips filtro estado + buscador + filtros año/cobertura. Tarjeta muestra: caso, mes/año, estado badge, nombre, cobertura, cédula, fecha presentación, contador de días, monto. Indicador 📄 si tiene `reportePago` adjunto. |
 | `#section-estadisticas` | ✅ estable | Tabs año 2025/2026/2027, 4 stat-cards, 2 doughnut charts (por cobertura + por monto asegurado), tabla top-5 montos. Botones "Descargar Excel" y "Descargar PDF". |
-| `#claim-modal` | ✅ estable | Alta/edición: zona carga PDF auto-fill (parser dual liquidación/carta ACEPO) + form completo + sección "Reporte de Pago (Control)" con adjuntar PDF (base64, max entrada 25 MB con compresión automática a <3.5 MB). |
+| `#claim-modal` | ✅ estable | Alta/edición: zona carga PDF auto-fill + form completo (asegurado + **afectado** opcional con vínculo editable) + "Reporte de Pago (Control)" PDF (base64, max 25 MB con compresión automática a <3.5 MB). |
 | `#pdf-modal` | ✅ estable | Visor iframe del reporte de pago adjunto + botón descargar + título dinámico. |
 
 ### Estados del reclamo
@@ -128,6 +128,10 @@ claim = {
   anno: 2025,                          // editable free-form
   cobertura: 'Pago Adelantado BITP',
   poliza: 'VTM 805',                   // 'VTM 805' | 'VTM 704' | 'VTM 703' (default 805 si falta)
+  // Afectado opcional (beneficio familiar — no siempre coincide con asegurado)
+  afectadoNombre: 'PEREZ MORA MARIA',
+  afectadoCedula: '101010101',
+  afectadoVinculo: 'Cónyuge',          // editable, datalist: Titular/Cónyuge/Hijo-a/Padre/Madre/Hermano-a/Otro
   montoAseg: 10000000,                 // montos fijos segun poliza (805: 2/4/6/8/10M, 704: 15M, 703: 400K)
   montoInd: 9946334,                   // monto real pagado
   mes: 'ENERO',                        // mes de indemnización
@@ -171,7 +175,8 @@ claim = {
 ## PUNTOS DE ATENCIÓN
 
 - **`setUser()` eliminada** (commit `b1c5ad5`) — ese bug bloqueaba `loadClaims()`. No reintroducir lógica de user/avatar en header.
-- **SDI logo SVG** ya es el oficial (`logo-compacto.svg` copiado del portal). `sdi-logo.jpg` queda de respaldo pero no se usa.
+- **Logo INS oficial** (`ins-logo.png`, JADE/teal del zip oficial INS) en esquina superior izquierda en ficha blanca con halo jade. `acepo-logo.svg` queda en repo como respaldo pero no se referencia. `sdi-logo.svg` sigue en header derecho.
+- **Reportes Excel/PDF filtran por `polizaActiva`**. Excel agrega columnas Afectado/Céd. Afectado/Vínculo. PDF tiene página detalle en **landscape** (11 columnas). Pies triviales se ocultan: si la póliza tiene 1 monto fijo o 1 sola cobertura.
 - **Seed de 46 casos** (34 VTM 805 + 12 VTM 703) coexiste en 3 lugares: (a) `SEED_LOCAL` en `app.html` para modo local, (b) array inicializador en `reclamos.mjs` para primera carga de Blobs, (c) Netlify Blobs en producción. Si hay que actualizar, actualizar los tres. Records VTM 805 legacy no tienen campo `poliza` — el filtro lo asume por default.
 - **Al agregar una nueva póliza:** (1) añadir entry a `POLIZAS` object, (2) añadir tab en HTML `.poliza-tabs`, (3) si tiene seed data, agregarla a `SEED_LOCAL` y `reclamos.mjs` con `poliza:'VTM XXX'`, (4) actualizar SKILL.md y memoria.
 - **Año editable:** `f-anno` es `<input type="number">` libre (no select). Tabs stats muestran 2025/2026/2027 pero la data puede tener cualquier año.
