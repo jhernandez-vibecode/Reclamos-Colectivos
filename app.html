@@ -404,6 +404,11 @@ select.filter-select:focus{border-color:rgba(14,165,233,.5);}
 .conc-table .num{font-family:'Outfit',sans-serif;font-weight:600;text-align:right;}
 .conc-table .arrow{color:var(--text3);}
 .conc-empty-row{padding:24px;text-align:center;color:var(--text3);font-size:13px;}
+.ditto{color:var(--text3);font-size:14px;}
+.ben-badge{
+  display:inline-block;font-family:'Outfit',sans-serif;font-size:11px;font-weight:700;
+  background:rgba(37,99,235,.1);color:#1e40af;padding:2px 8px;border-radius:10px;
+}
 
 /* ── MODAL ── */
 .modal-overlay{
@@ -1937,6 +1942,7 @@ function _parseMontoText(v) {
   return parseInt(s,10) || 0;
 }
 function _formatMonto(n) { return '₡' + (Number(n)||0).toLocaleString('es-CR'); }
+function _uniqByCedula(arr) { return new Set((arr||[]).map(x=>x.cedula||x.cedulaRaw)).size; }
 
 function _findHeaderRow(rows, expected) {
   for (let i=0;i<Math.min(rows.length,8);i++) {
@@ -2010,23 +2016,57 @@ function _readPlantillaMax(wb) {
     const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
     const hi = _findHeaderRow(rows, ['IDENTIFICA','SUMA']);
     if (hi < 0) return [];
-    const headers = rows[hi].map(h => String(h||'').trim().toUpperCase());
+    const headers = rows[hi].map(h => String(h||'').trim().toUpperCase().replace(/\s+/g,' ').trim());
     const idx = name => headers.findIndex(h => h.includes(name));
     const idxExact = name => headers.findIndex(h => h === name);
     // Asegurado: columna "Identificación" (NO "Tipo de Identificación")
     let iCed = idxExact('IDENTIFICACIÓN');
     if (iCed < 0) iCed = idxExact('IDENTIFICACION');
-    if (iCed < 0) iCed = headers.findIndex(h => h.includes('IDENTIFICAC') && !h.includes('TIPO') && !h.includes('BENEF'));
+    if (iCed < 0) iCed = headers.findIndex(h => h.includes('IDENTIFICAC') && !h.includes('TIPO') && !h.includes('BENEF') && !/\d/.test(h));
     const iAp1 = idx('PRIMER APELLIDO');
     const iAp2 = idx('SEGUNDO APELLIDO');
     const iNo1 = idx('PRIMER NOMBRE');
     const iNo2 = idx('SEGUNDO NOMBRE');
     const iSum = idx('SUMA ASEGURADA');
     const iVig = idx('VIGENCIA');
-    const iBenNom = headers.findIndex((h,k) => k>iSum && h.includes('NOMBRE COMPLETO'));
-    const iBenCed = headers.findIndex(h => h.includes('IDENTIFICACIÓN BENEF') || h.includes('IDENTIFICACION BENEF') || h.includes('BENEFICIARIOS'));
-    const iBenPar = idx('PARENTESCO');
-    const iBenPct = idx('PORCENTAJE');
+
+    // Detectar hasta 8 slots de beneficiario (formato horizontal Plantilla MAC)
+    // Slot 1: cols sin sufijo (Identificación BENEFICIARIOS, Tipo identificación, Nombre completo, Parentesco, Porcentaje)
+    // Slot 2-8: con sufijo numérico (IdentificaciónN, ..., PorcentajeN o "Porcentaje N" con espacio)
+    const benSlots = [];
+    const slot1 = {
+      ced: headers.findIndex(h => h.includes('BENEFICIARIO')),
+      tipo: headers.findIndex(h => h === 'TIPO IDENTIFICACIÓN' || h === 'TIPO IDENTIFICACION'),
+      nombre: headers.findIndex(h => h === 'NOMBRE COMPLETO'),
+      parent: headers.findIndex(h => h === 'PARENTESCO'),
+      pct: headers.findIndex(h => h === 'PORCENTAJE'),
+    };
+    if (slot1.nombre >= 0 || slot1.ced >= 0) benSlots.push(slot1);
+    for (let n = 2; n <= 8; n++) {
+      const find = (variants) => headers.findIndex(h => variants.some(v => h === v));
+      const slot = {
+        ced: find([`IDENTIFICACIÓN${n}`, `IDENTIFICACION${n}`, `IDENTIFICACIÓN ${n}`]),
+        tipo: find([`TIPO IDENTIFICACIÓN${n}`, `TIPO IDENTIFICACION${n}`, `TIPO IDENTIFICACIÓN ${n}`]),
+        nombre: find([`NOMBRE COMPLETO${n}`, `NOMBRE COMPLETO ${n}`]),
+        parent: find([`PARENTESCO${n}`, `PARENTESCO ${n}`]),
+        pct: find([`PORCENTAJE${n}`, `PORCENTAJE ${n}`]),
+      };
+      if (slot.nombre >= 0 || slot.ced >= 0) benSlots.push(slot);
+    }
+
+    const readBenef = (row, slot) => {
+      const nombre = slot.nombre >= 0 ? String(row[slot.nombre]||'').trim() : '';
+      const ced = slot.ced >= 0 ? _normCedula(row[slot.ced]) : '';
+      if (!nombre && !ced) return null;
+      return {
+        nombre,
+        cedula: ced,
+        cedulaRaw: slot.ced >= 0 ? String(row[slot.ced]||'').trim() : '',
+        parentesco: slot.parent >= 0 ? String(row[slot.parent]||'').trim() : '',
+        porcentaje: slot.pct >= 0 ? String(row[slot.pct]||'').trim() : '',
+      };
+    };
+
     const out = [];
     for (let r=hi+1;r<rows.length;r++) {
       const row = rows[r];
@@ -2037,16 +2077,19 @@ function _readPlantillaMax(wb) {
       const ap2 = String(row[iAp2]||'').trim();
       const no1 = String(row[iNo1]||'').trim();
       const no2 = String(row[iNo2]||'').trim();
+      const beneficiarios = benSlots.map(s => readBenef(row, s)).filter(Boolean);
       out.push({
         cedula: ced,
         cedulaRaw: String(row[iCed]).trim(),
         nombre: [ap1, ap2, no1, no2].filter(Boolean).join(' '),
         monto: _parseMontoText(row[iSum]),
         vigencia: row[iVig] || '',
-        benNombre: iBenNom >= 0 ? String(row[iBenNom]||'').trim() : '',
-        benCedula: iBenCed >= 0 ? _normCedula(row[iBenCed]) : '',
-        benParentesco: iBenPar >= 0 ? String(row[iBenPar]||'').trim() : '',
-        benPorcentaje: iBenPct >= 0 ? row[iBenPct] : '',
+        beneficiarios,
+        // Compat — primer beneficiario expuesto plano
+        benNombre: beneficiarios[0]?.nombre || '',
+        benCedula: beneficiarios[0]?.cedula || '',
+        benParentesco: beneficiarios[0]?.parentesco || '',
+        benPorcentaje: beneficiarios[0]?.porcentaje || '',
       });
     }
     return out;
@@ -2065,9 +2108,20 @@ function runConciliacion() {
     const exclusiones = [];   // hoja EXCLUSIONES de Plantilla MAX
 
     // Inclusiones — TODA fila en hoja INCLUSIONES es una alta nueva
+    // (una fila por beneficiario; el primero queda como representante del asegurado)
     for (const i of max.inclusiones) {
       const exist = listado.get(i.cedula);
-      inclusiones.push({ ...i, enListado: !!exist, nombreListado: exist?.nombre || i.nombre });
+      const benefs = (i.beneficiarios && i.beneficiarios.length) ? i.beneficiarios : [{ nombre:'', cedula:'', parentesco:'', porcentaje:'' }];
+      benefs.forEach((b, idx) => {
+        inclusiones.push({
+          ...i,
+          enListado: !!exist,
+          nombreListado: exist?.nombre || i.nombre,
+          benNombre: b.nombre, benCedula: b.cedula, benCedulaRaw: b.cedulaRaw||'',
+          benParentesco: b.parentesco, benPorcentaje: b.porcentaje,
+          benIndex: idx + 1, benTotal: benefs.length,
+        });
+      });
     }
 
     // Variaciones — modificaciones de asegurados existentes
@@ -2076,9 +2130,21 @@ function runConciliacion() {
       if (exist && exist.monto !== v.monto && v.monto > 0) {
         cambiosMonto.push({ ...v, montoAnterior: exist.monto, montoNuevo: v.monto, nombreListado: exist.nombre });
       }
-      if (v.benNombre) {
-        cambiosBen.push({ ...v, nombreListado: exist?.nombre || v.nombre });
-      }
+      // Una fila por beneficiario presente (un asegurado puede tener hasta 8)
+      const totalBenef = (v.beneficiarios||[]).length;
+      (v.beneficiarios||[]).forEach((b, idx) => {
+        cambiosBen.push({
+          ...v,
+          nombreListado: exist?.nombre || v.nombre,
+          benNombre: b.nombre,
+          benCedula: b.cedula,
+          benCedulaRaw: b.cedulaRaw,
+          benParentesco: b.parentesco,
+          benPorcentaje: b.porcentaje,
+          benIndex: idx + 1,
+          benTotal: totalBenef,
+        });
+      });
     }
 
     // Exclusiones — bajas
@@ -2115,20 +2181,26 @@ function _renderConciliacion() {
   document.getElementById('conc-summary').innerHTML = `
     <div class="conc-stat tot"><div class="conc-stat-label">Póliza</div><div class="conc-stat-value" style="font-size:18px;">${r.periodo.poliza || polizaActiva}</div></div>
     <div class="conc-stat tot"><div class="conc-stat-label">Padrón LISTADO</div><div class="conc-stat-value">${r.totalListado.toLocaleString('es-CR')}</div></div>
-    <div class="conc-stat add"><div class="conc-stat-label">Inclusiones</div><div class="conc-stat-value">${r.inclusiones.length}</div></div>
+    <div class="conc-stat add"><div class="conc-stat-label">Inclusiones</div><div class="conc-stat-value">${_uniqByCedula(r.inclusiones)}</div></div>
     <div class="conc-stat del"><div class="conc-stat-label">Exclusiones</div><div class="conc-stat-value">${r.exclusiones.length}</div></div>
     <div class="conc-stat mod"><div class="conc-stat-label">Cambios de monto</div><div class="conc-stat-value">${r.cambiosMonto.length}</div></div>
-    <div class="conc-stat ben"><div class="conc-stat-label">Cambios beneficiario</div><div class="conc-stat-value">${r.cambiosBen.length}</div></div>
+    <div class="conc-stat ben"><div class="conc-stat-label">Cambios beneficiario</div><div class="conc-stat-value">${_uniqByCedula(r.cambiosBen)}</div></div>
     <div class="conc-stat"><div class="conc-stat-label">Período</div><div class="conc-stat-value" style="font-size:16px;">${periodo}</div></div>
   `;
 
   const blocks = [
     {
-      cls:'conc-block-add', icon:'🟢', title:'Inclusiones (asegurados nuevos)', count:r.inclusiones.length,
-      cols:['Cédula','Nombre','Monto Asegurado','Beneficiario','Parentesco'],
+      cls:'conc-block-add', icon:'🟢', title:'Inclusiones (asegurados nuevos)', count:_uniqByCedula(r.inclusiones),
+      cols:['Cédula','Nombre','Monto Asegurado','Benef.','Beneficiario','Cédula Benef.','Parentesco','%'],
       rows:r.inclusiones.map(i => [
-        i.cedulaRaw, capitalName(i.nombre), `<span class="num">${_formatMonto(i.monto)}</span>`,
-        i.benNombre ? capitalName(i.benNombre) : '—', i.benParentesco || '—'
+        i.benIndex===1?i.cedulaRaw:'<span class="ditto">↳</span>',
+        i.benIndex===1?capitalName(i.nombre):'',
+        i.benIndex===1?`<span class="num">${_formatMonto(i.monto)}</span>`:'',
+        i.benTotal>1?`<span class="ben-badge">${i.benIndex}/${i.benTotal}</span>`:'—',
+        i.benNombre ? capitalName(i.benNombre) : '—',
+        i.benCedulaRaw || i.benCedula || '—',
+        i.benParentesco || '—',
+        i.benPorcentaje || '—'
       ]),
       empty:'No se detectaron inclusiones nuevas en este período.'
     },
@@ -2158,11 +2230,16 @@ function _renderConciliacion() {
       empty:'No se detectaron cambios de monto en este período.'
     },
     {
-      cls:'conc-block-ben', icon:'🔵', title:'Cambios de beneficiario (registrados en VARIACIONES)', count:r.cambiosBen.length,
-      cols:['Cédula Asegurado','Asegurado','Beneficiario Nuevo','Cédula Benef.','Parentesco','%'],
+      cls:'conc-block-ben', icon:'🔵', title:'Cambios de beneficiario (registrados en VARIACIONES)', count:_uniqByCedula(r.cambiosBen),
+      cols:['Cédula Asegurado','Asegurado','Benef.','Beneficiario Nuevo','Cédula Benef.','Parentesco','%'],
       rows:r.cambiosBen.map(i => [
-        i.cedulaRaw, capitalName(i.nombreListado||i.nombre),
-        capitalName(i.benNombre||''), i.benCedula||'—', i.benParentesco||'—', i.benPorcentaje||'—'
+        i.benIndex===1?i.cedulaRaw:'<span class="ditto">↳</span>',
+        i.benIndex===1?capitalName(i.nombreListado||i.nombre):'',
+        i.benTotal>1?`<span class="ben-badge">${i.benIndex}/${i.benTotal}</span>`:'1/1',
+        capitalName(i.benNombre||''),
+        i.benCedulaRaw || i.benCedula || '—',
+        i.benParentesco || '—',
+        i.benPorcentaje || '—'
       ]),
       empty:'No se detectaron cambios de beneficiario en este período.'
     },
@@ -2201,20 +2278,31 @@ function exportConciliacion() {
     [],
     ['Resultado','Cantidad'],
     ['Padrón LISTADO', r.totalListado],
-    ['Inclusiones', r.inclusiones.length],
+    ['Inclusiones (asegurados)', _uniqByCedula(r.inclusiones)],
     ['Exclusiones', r.exclusiones.length],
     ['Cambios de monto', r.cambiosMonto.length],
-    ['Cambios de beneficiario', r.cambiosBen.length],
+    ['Cambios de beneficiario (asegurados)', _uniqByCedula(r.cambiosBen)],
+    ['Total filas beneficiarios listados', r.inclusiones.length + r.cambiosBen.length],
   ];
   const wsR = XLSX.utils.aoa_to_sheet(resumen);
   wsR['!cols'] = [{wch:30},{wch:48}];
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumen');
 
-  // Inclusiones
-  const inc = [['Cédula','Nombre','Monto Asegurado','Beneficiario','Cédula Beneficiario','Parentesco','%','Vigencia desde']];
-  r.inclusiones.forEach(i => inc.push([i.cedulaRaw, capitalName(i.nombre), i.monto, capitalName(i.benNombre||''), i.benCedula||'', i.benParentesco||'', i.benPorcentaje||'', i.vigencia||'']));
+  // Inclusiones — una fila por beneficiario (datos asegurado solo en la 1ra)
+  const inc = [['Cédula','Nombre Asegurado','Monto Asegurado','Benef.','Beneficiario','Cédula Beneficiario','Parentesco','%','Vigencia desde']];
+  r.inclusiones.forEach(i => inc.push([
+    i.benIndex===1 ? i.cedulaRaw : '',
+    i.benIndex===1 ? capitalName(i.nombre) : '',
+    i.benIndex===1 ? i.monto : '',
+    i.benTotal>1 ? `${i.benIndex}/${i.benTotal}` : '',
+    capitalName(i.benNombre||''),
+    i.benCedulaRaw || i.benCedula || '',
+    i.benParentesco || '',
+    i.benPorcentaje || '',
+    i.benIndex===1 ? (i.vigencia||'') : ''
+  ]));
   const wsI = XLSX.utils.aoa_to_sheet(inc);
-  wsI['!cols'] = [14,32,18,32,16,14,8,14].map(w=>({wch:w}));
+  wsI['!cols'] = [14,32,18,8,32,16,14,8,14].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb, wsI, 'Inclusiones');
 
   // Exclusiones
@@ -2231,11 +2319,19 @@ function exportConciliacion() {
   wsM['!cols'] = [14,32,18,18,18].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb, wsM, 'Cambios de Monto');
 
-  // Cambios beneficiario
-  const ben = [['Cédula Asegurado','Asegurado','Beneficiario Nuevo','Cédula Beneficiario','Parentesco','%']];
-  r.cambiosBen.forEach(i => ben.push([i.cedulaRaw, capitalName(i.nombreListado||i.nombre), capitalName(i.benNombre||''), i.benCedula||'', i.benParentesco||'', i.benPorcentaje||'']));
+  // Cambios beneficiario — una fila por beneficiario (datos asegurado solo en la 1ra)
+  const ben = [['Cédula Asegurado','Asegurado','Benef.','Beneficiario Nuevo','Cédula Beneficiario','Parentesco','%']];
+  r.cambiosBen.forEach(i => ben.push([
+    i.benIndex===1 ? i.cedulaRaw : '',
+    i.benIndex===1 ? capitalName(i.nombreListado||i.nombre) : '',
+    i.benTotal>1 ? `${i.benIndex}/${i.benTotal}` : '1/1',
+    capitalName(i.benNombre||''),
+    i.benCedulaRaw || i.benCedula || '',
+    i.benParentesco||'',
+    i.benPorcentaje||''
+  ]));
   const wsB = XLSX.utils.aoa_to_sheet(ben);
-  wsB['!cols'] = [16,32,32,16,14,8].map(w=>({wch:w}));
+  wsB['!cols'] = [16,32,8,32,16,14,8].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb, wsB, 'Cambios Beneficiario');
 
   const polizaKey = (r.periodo.poliza || polizaActiva).replace(/\s+/g,'');
