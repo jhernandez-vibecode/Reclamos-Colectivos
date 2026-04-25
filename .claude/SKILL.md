@@ -14,8 +14,8 @@ description: >
 
 > Este archivo es **estado vigente**, no un log histórico. Los checkpoints cronológicos viven en `git log` y en la memoria (`~/.claude/projects/.../memory/project_reclamos_colectivos.md`). Actualizar las secciones de abajo cada vez que cambie el estado — no añadir log de commits aquí.
 
-**Última actualización:** 25 abril 2026 — fix módulo Conciliación: leer hoja INCLUSIONES
-**Último commit main:** `3d994d0` Fix conciliacion: leer hoja INCLUSIONES separada de VARIACIONES
+**Última actualización:** 25 abril 2026 — soporte multi-beneficiario en Conciliación (hasta 8 por asegurado)
+**Último commit main:** `7d7bbd7` Conciliacion: soporte multi-beneficiario (hasta 8 por asegurado)
 **Repo GitHub:** https://github.com/jhernandez-vibecode/Reclamos-Colectivos
 **Dominio público:** Netlify auto-deploy desde `main` (URL por confirmar)
 **Pólizas ACEPO (tomador 3002056545):**
@@ -181,9 +181,19 @@ claim = {
 - **Conciliación lógica:**
   - Inclusiones = TODA fila de hoja `INCLUSIONES` (no derivar de "VARIACIONES no en LISTADO" — la asunción anterior era errónea, las altas ya están en LISTADO porque el padrón ACEPO se actualiza post-cambios).
   - Cambios de monto = filas en `VARIACIONES` cuya cédula está en LISTADO con monto distinto.
-  - Cambios de beneficiario = filas en `VARIACIONES` con beneficiario asignado.
+  - Cambios de beneficiario = filas en `VARIACIONES` con uno o más beneficiarios asignados.
   - Exclusiones = TODA fila de hoja `EXCLUSIONES`.
   - Header en hoja Plantilla MAC: fila índice 2 (3ra fila). Cédula en col índice 2 (col C). Match exacto en "IDENTIFICACIÓN" para evitar capturar "TIPO DE IDENTIFICACIÓN".
+- **Multi-beneficiario (Plantilla MAC):**
+  - Cada fila tiene **40 columnas adicionales** = 8 slots × 5 campos (Identificación, Tipo, Nombre, Parentesco, Porcentaje).
+  - Headers inconsistentes:
+    - Slot 1 sin sufijo numérico (ej `Identificación BENEFICIARIOS`, `Nombre completo`, `Parentesco`, `Porcentaje`).
+    - Slots 2-5 con sufijo numérico pegado (`Identificación2`, ..., `Porcentaje5`).
+    - Slots 6-8 con sufijo numérico **con espacio** (`Porcentaje 6`, `Porcentaje 7`, `Porcentaje 8`).
+  - Parser normaliza espacios y prueba todas las variantes.
+  - Tablas y export Excel emiten **1 fila por beneficiario**: datos del asegurado solo en la 1ra fila del grupo, badge `1/N, 2/N, ...` en cada fila para visualizar la agrupación.
+  - Stat-cards "Inclusiones" y "Cambios beneficiario" cuentan **asegurados únicos** (`_uniqByCedula`), no filas, para no inflar el número.
+  - Códigos de parentesco (referencia INS): `020`=Cónyuge, `030`=Hijo/a, `060`=Hermano/a (no se mapea a texto en el output, se muestra como código).
 - **Seed de 46 casos** (34 VTM 805 + 12 VTM 703) coexiste en 3 lugares: (a) `SEED_LOCAL` en `app.html` para modo local, (b) array inicializador en `reclamos.mjs` para primera carga de Blobs, (c) Netlify Blobs en producción. Si hay que actualizar, actualizar los tres. Records VTM 805 legacy no tienen campo `poliza` — el filtro lo asume por default.
 - **Al agregar una nueva póliza:** (1) añadir entry a `POLIZAS` object, (2) añadir tab en HTML `.poliza-tabs`, (3) si tiene seed data, agregarla a `SEED_LOCAL` y `reclamos.mjs` con `poliza:'VTM XXX'`, (4) actualizar SKILL.md y memoria.
 - **Año editable:** `f-anno` es `<input type="number">` libre (no select). Tabs stats muestran 2025/2026/2027 pero la data puede tener cualquier año.
