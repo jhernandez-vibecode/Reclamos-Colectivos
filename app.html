@@ -2002,6 +2002,7 @@ function _readPlantillaMax(wb) {
     const name = wb.SheetNames.find(n => re.test(n.trim().toUpperCase()));
     return name ? wb.Sheets[name] : null;
   };
+  const sInc = sheetByName(/^INCLUSI/);
   const sVar = sheetByName(/^VARIACI/);
   const sExc = sheetByName(/^EXCLUS/);
   const parse = (sheet) => {
@@ -2050,7 +2051,7 @@ function _readPlantillaMax(wb) {
     }
     return out;
   };
-  return { variaciones: parse(sVar), exclusiones: parse(sExc) };
+  return { inclusiones: parse(sInc), variaciones: parse(sVar), exclusiones: parse(sExc) };
 }
 
 function runConciliacion() {
@@ -2058,25 +2059,29 @@ function runConciliacion() {
     const listado = _readListado(_conc.listado);
     const max = _readPlantillaMax(_conc.max);
 
-    const inclusiones = [];   // en VARIACIONES y NO en LISTADO
-    const cambiosMonto = [];  // en VARIACIONES, está en LISTADO, monto distinto
-    const cambiosBen = [];    // en VARIACIONES, está en LISTADO (es modificación) → muestra beneficiario
-    const exclusiones = [];   // todo lo de hoja EXCLUSIONES
+    const inclusiones = [];   // hoja INCLUSIONES de Plantilla MAX
+    const cambiosMonto = [];  // VARIACIONES: monto distinto al LISTADO (LISTADO mes anterior)
+    const cambiosBen = [];    // VARIACIONES: registros con beneficiario asignado
+    const exclusiones = [];   // hoja EXCLUSIONES de Plantilla MAX
 
+    // Inclusiones — TODA fila en hoja INCLUSIONES es una alta nueva
+    for (const i of max.inclusiones) {
+      const exist = listado.get(i.cedula);
+      inclusiones.push({ ...i, enListado: !!exist, nombreListado: exist?.nombre || i.nombre });
+    }
+
+    // Variaciones — modificaciones de asegurados existentes
     for (const v of max.variaciones) {
       const exist = listado.get(v.cedula);
-      if (!exist) {
-        inclusiones.push({ ...v, montoListado: null });
-      } else {
-        if (exist.monto !== v.monto && v.monto > 0) {
-          cambiosMonto.push({ ...v, montoAnterior: exist.monto, montoNuevo: v.monto, nombreListado: exist.nombre });
-        }
-        if (v.benNombre) {
-          cambiosBen.push({ ...v, nombreListado: exist.nombre });
-        }
+      if (exist && exist.monto !== v.monto && v.monto > 0) {
+        cambiosMonto.push({ ...v, montoAnterior: exist.monto, montoNuevo: v.monto, nombreListado: exist.nombre });
+      }
+      if (v.benNombre) {
+        cambiosBen.push({ ...v, nombreListado: exist?.nombre || v.nombre });
       }
     }
 
+    // Exclusiones — bajas
     for (const e of max.exclusiones) {
       const exist = listado.get(e.cedula);
       exclusiones.push({ ...e, nombreListado: exist?.nombre || e.nombre, montoListado: exist?.monto || 0 });
