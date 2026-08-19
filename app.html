@@ -128,6 +128,11 @@ body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);dis
 .btn-primary:hover{background:#0284c7;box-shadow:0 4px 16px rgba(14,165,233,.35);}
 .btn-ghost{background:#fff;color:var(--text2);border:1px solid var(--border);}
 .btn-ghost:hover{background:#f8fafc;color:var(--text);}
+.btn-danger{background:#dc2626;color:#fff;font-weight:600;}
+.btn-danger:hover{background:#b91c1c;box-shadow:0 4px 16px rgba(220,38,38,.3);}
+.btn-danger:disabled{background:#fca5a5;cursor:not-allowed;box-shadow:none;}
+.btn-danger-ghost{background:#fff;color:#dc2626;border:1px solid rgba(220,38,38,.3);}
+.btn-danger-ghost:hover{background:#fee2e2;}
 
 /* ── FILTERS ── */
 .filters{
@@ -458,7 +463,32 @@ select.form-input option{background:#fff;}
   color:var(--text3);text-transform:uppercase;
   grid-column:1/-1;margin-top:4px;
 }
-.form-actions{display:flex;gap:12px;margin-top:24px;justify-content:flex-end;}
+.form-actions{display:flex;gap:12px;margin-top:24px;justify-content:flex-end;align-items:center;}
+.form-actions .spacer{flex:1;}
+
+/* ── MODAL ELIMINAR RECLAMO ── */
+.modal-sm{max-width:460px;padding:28px;text-align:center;}
+.del-icon{
+  width:56px;height:56px;border-radius:50%;background:#fee2e2;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;margin:0 auto 16px;
+}
+.del-title{font-family:'Outfit',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px;}
+.del-sub{color:var(--text2);font-size:14px;margin-bottom:18px;}
+.del-resumen{
+  background:var(--card2);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;text-align:left;margin-bottom:16px;
+}
+.del-resumen .r-caso{font-size:12px;color:var(--text2);font-weight:600;}
+.del-resumen .r-nombre{font-family:'Outfit',sans-serif;font-size:16px;font-weight:600;margin:2px 0 8px;}
+.del-resumen .r-line{font-size:12px;color:var(--text2);display:flex;justify-content:space-between;gap:12px;padding:2px 0;}
+.del-warn{
+  background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);
+  border-radius:10px;padding:11px 14px;font-size:12.5px;color:#b91c1c;
+  text-align:left;margin-bottom:18px;line-height:1.45;
+}
+.del-actions{display:flex;gap:10px;}
+.del-actions .btn{flex:1;justify-content:center;}
 
 /* PDF UPLOAD */
 .pdf-upload-zone{
@@ -875,9 +905,38 @@ select.form-input option{background:#fff;}
       </form>
 
       <div class="form-actions">
-        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveClaim()">Guardar Reclamo</button>
+        <button type="button" class="btn btn-danger-ghost" id="btn-eliminar-reclamo" style="display:none;" onclick="askDelete()">🗑 Eliminar reclamo</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="saveClaim()">Guardar Reclamo</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL CONFIRMAR ELIMINACIÓN ── -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal modal-sm">
+    <div class="del-icon">🗑</div>
+    <div class="del-title">¿Eliminar este reclamo?</div>
+    <div class="del-sub">Revisá que sea el correcto antes de continuar.</div>
+
+    <div class="del-resumen">
+      <div class="r-caso" id="del-caso"></div>
+      <div class="r-nombre" id="del-nombre"></div>
+      <div class="r-line"><span>Cobertura</span><span id="del-cobertura"></span></div>
+      <div class="r-line"><span>Monto asegurado</span><span id="del-monto"></span></div>
+      <div class="r-line"><span>Estado</span><span id="del-estado"></span></div>
+      <div class="r-line"><span>Presentado el</span><span id="del-fecha"></span></div>
+    </div>
+
+    <div class="del-warn">
+      <strong>Esto no se puede deshacer.</strong> El reclamo se borra de forma permanente para todos los que entren con el PIN, junto con el reporte de pago adjunto si lo tuviera.
+    </div>
+
+    <div class="del-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeDeleteModal()">Cancelar</button>
+      <button type="button" class="btn btn-danger" id="btn-confirm-delete" onclick="confirmDelete()">Sí, eliminar</button>
     </div>
   </div>
 </div>
@@ -1203,6 +1262,8 @@ function openModal(id) {
   document.getElementById('upload-zone').querySelector('p:first-of-type').innerHTML =
     '<strong>Cargar Reporte de Liquidación (PDF)</strong>';
   document.getElementById('modal-title').textContent = id ? 'Editar Reclamo' : 'Nuevo Reclamo';
+  // El botón de eliminar solo existe al editar un reclamo ya guardado
+  document.getElementById('btn-eliminar-reclamo').style.display = id ? '' : 'none';
   rebuildMontoSelect();
 
   if (id) {
@@ -1362,6 +1423,59 @@ function closeModal() {
   document.getElementById('claim-modal').classList.remove('open');
   editingId = null;
 }
+
+// ===================== ELIMINAR RECLAMO =====================
+let _deletingId = null;
+
+function askDelete(id) {
+  const target = id || editingId;
+  if (!target) return;
+  const c = claims.find(x => x.id === target);
+  if (!c) return;
+  _deletingId = target;
+  document.getElementById('del-caso').textContent      = `Caso #${c.numero || '—'} · ${c.poliza || 'VTM 805'}`;
+  document.getElementById('del-nombre').textContent    = c.nombre ? capitalName(c.nombre) : '—';
+  document.getElementById('del-cobertura').textContent = c.cobertura || '—';
+  document.getElementById('del-monto').textContent     = '₡' + fmt(c.montoAseg || 0);
+  document.getElementById('del-estado').textContent    = c.estado || '—';
+  document.getElementById('del-fecha').textContent     = c.fechaPres ? fmtDate(c.fechaPres) : '—';
+  document.getElementById('delete-modal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('delete-modal').classList.remove('open');
+  _deletingId = null;
+}
+
+async function confirmDelete() {
+  const id = _deletingId;
+  if (!id) return;
+  const btn = document.getElementById('btn-confirm-delete');
+  btn.disabled = true;
+  btn.textContent = 'Eliminando…';
+  try {
+    await api('DELETE', { id });
+    claims = claims.filter(c => c.id !== id);
+    closeDeleteModal();
+    closeModal();
+    renderAll();
+    showToast('🗑 Reclamo eliminado', '#dc2626');
+  } catch (e) {
+    console.error('[DELETE]', e);
+    showToast('⚠️ No se pudo eliminar. Intente de nuevo.', '#dc2626');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sí, eliminar';
+  }
+}
+
+// Cancelar la eliminación con clic afuera o con Escape
+document.getElementById('delete-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('delete-modal').classList.contains('open')) closeDeleteModal();
+});
 
 function fillForm(c) {
   document.getElementById('f-numero').value = c.numero||'';

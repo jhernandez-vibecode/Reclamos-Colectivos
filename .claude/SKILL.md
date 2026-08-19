@@ -14,8 +14,8 @@ description: >
 
 > Este archivo es **estado vigente** + un historial condensado al final. El nodo de memoria `project_reclamos_colectivos.md` fue **retirado el 22 jul 2026** (el Claude Memory Engine quedó exclusivo de SASINS), así que este SKILL.md + `git log` son la única fuente de verdad del proyecto. Actualizar las secciones de abajo cada vez que cambie el estado.
 
-**Última actualización:** 22 jul 2026 — migración del nodo de memoria a este SKILL + correcciones verificadas contra el código.
-**Último commit main:** `e2b4189` SKILL.md sync (verificado en `git log` el 22 jul 2026). El último cambio de código de la app es `08e2e68` "Fix: conteos de chips respetan filtros año/cobertura/buscador".
+**Última actualización:** 19 ago 2026 — botón de eliminar reclamo con confirmación reforzada + lápidas en el autoseed.
+**Último commit main:** ver `git log` (el header se desactualiza solo). El último cambio de código de la app es el botón de eliminar reclamo (19 ago 2026).
 **Repo GitHub:** https://github.com/vibecode-clients-lda/Reclamos-Colectivos *(migrado desde `jhernandez-vibecode` el 11 may 2026)*
 **Clon local:** `C:/Users/segur/Downloads/Reclamos-Colectivos` — ⚠️ está en **Downloads**, carpeta que barren los limpiadores de disco (CCleaner). Si desaparece, volver a clonar del repo. Por eso este SKILL.md también vive fuera de Downloads (ver "Sincronización del SKILL.md").
 **Dominio público:** Netlify site `reclamos-colectivos` (transferida al team `vibecode-clients-lda`) → `reclamos-colectivos.netlify.app`
@@ -69,6 +69,7 @@ Residuos sin uso en el repo: `firebase-config.js`, `sdi-logo.jpg`.
 | `#claim-modal` | ✅ estable | Alta/edición: zona carga PDF auto-fill + form completo (asegurado + **afectado** opcional con vínculo editable) + "Reporte de Pago (Control)" PDF (base64, max 25 MB con compresión automática a <3.5 MB). |
 | `#section-conciliacion` | ✅ estable | Conciliación mensual por póliza. 2 dropzones (Plantilla MAX INS + LISTADO ACEPO). **Plantilla MAX trae 3 hojas: `INCLUSIONES` (altas), `VARIACIONES` (modificaciones de monto/beneficiario), `EXCLUSIONES` (bajas)** + catálogos `Cantón`/`Distrito` (ignorar). Detecta los 4 tipos de movimientos y los muestra en **6 stat-cards + 4 bloques tabulares** (los stat-cards cuentan asegurados únicos, no filas). Export Excel respaldo (`Conciliacion_VTMxxx_MES_AAAA.xlsx`) con 5 hojas (Resumen + 4 categorías), una fila por beneficiario. Botón Limpiar resetea todo. **NO persiste** — todo en memoria; el agente guarda el Excel de respaldo en su carpeta del mes. Póliza, mes y año se detectan automáticamente del nombre del archivo. |
 | `#pdf-modal` | ✅ estable | Visor iframe del reporte de pago adjunto + botón descargar + título dinámico. |
+| `#delete-modal` | ✅ estable | Confirmación de borrado (19 ago 2026). Se abre SOLO desde el botón `🗑 Eliminar reclamo` del pie de `#claim-modal`, que a su vez **solo existe al editar** un reclamo ya guardado (`openModal()` lo oculta si no hay `id`). Muestra un resumen del caso (nº, póliza, nombre, cobertura, monto, estado, fecha) + aviso de irreversibilidad. Se cancela con el botón, con clic afuera o con Escape. **No hay botón de eliminar en la tarjeta** — decisión de JC del 19 ago: obliga a abrir el reclamo y verlo antes de borrarlo. |
 
 ### Estados del reclamo
 
@@ -93,6 +94,8 @@ Badges con fondo pastel + texto saturado. Contador de días ⏱ solo activo en e
 | `attachReportePago(input)` | ~1168 | Validación tipo/tamaño + compresión automática si >3.5 MB. |
 | `compressPdf(file, target)` | ~1210 | pdf.js renderiza cada página a canvas → JPEG → jsPDF reconstruye PDF. 4 intentos progresivos (quality 0.72→0.4, scale 1.5x→0.9x). Prueba real: 8.9 MB → 0.25 MB. |
 | `viewPdf(id)` | ~1190 | Abre pdf-modal con iframe del `reportePago` almacenado. |
+| `askDelete(id)` | ~1428 | Abre `#delete-modal`. Sin argumento usa `editingId`. Llena el resumen con **`textContent`** (no `innerHTML`) — los nombres vienen de PDFs del INS y no se escapan en ningún otro lado. |
+| `confirmDelete()` | ~1450 | `api('DELETE', {id})` → saca el caso de `claims` → cierra ambos modales → `renderAll()` → toast rojo. Deshabilita el botón mientras corre y lo restaura en `finally`, así un error de red no lo deja trabado. |
 | `renderStats(year)` | ~1134 | Summary cards + 2 charts + top-5. Chart 2 agrupa por monto asegurado exacto (2M/4M/6M/8M/10M/Otro), oculta categorías vacías. |
 | `exportExcel()` / `exportPDF()` | ~1696 / ~1742 | Descarga reportes filtrados por `claimsDePoliza()`. **Excel** sale como `Reporte_Reclamos_VTM703_2025.xlsx` (patrón `Reporte_Reclamos_VTM{póliza}_{año}.xlsx`) con columnas de afectado + multi-beneficiario. PDF usa `c/` prefix en lugar de `₡`. Números en `en-US` locale. **Header**: "INFORME RECLAMOS - Poliza 0101 VTM XXX" + subtítulo "ASOCIACION CULTURAL Y EDUCATIVA PARA LA POLICIA" + "Cedula Juridica: 3-002-056545". **Página 1 portrait** (resumen+donuts redondos con `drawChart` helper que preserva aspect ratio+top5). **Página 2 landscape** 11 cols con afectado. **Tarjeta agente Fernando Hernández al final** (stripe jade, Licencia SUGESE 08-1319, Código 110129, WhatsApp +506 8526-3532, email `fhernandez@segurosdelins.com`, logo INS proporcional 4.23:1). Sin URL web. |
 
@@ -133,7 +136,21 @@ const POLIZAS = {
 | Función | Estado | Propósito |
 |---|---|---|
 | `auth.mjs` | ✅ estable | POST `/api/auth` con `{pin}` → verifica contra `process.env.ACCESS_PIN` → devuelve `{ok, token: btoa(PIN + ':reclamos')}`. |
-| `reclamos.mjs` | ✅ estable | CRUD sobre Netlify Blobs. 🔴 **El store se llama `reclamos-vtm805` y la key es `claims`** (`reclamos.mjs:62` y `:65`) — nombre heredado de cuando solo existía la VTM 805. **NO renombrarlo** aunque el site se llame `reclamos-colectivos`: se perdería todo el histórico. Acciones: GET (lista), POST (agrega con `id = Date.now().toString()`), PUT (actualiza por id), DELETE. Auth: Bearer header validado contra `btoa(ACCESS_PIN + ':reclamos')`. **Autoseed:** si el blob está vacío escribe los 46 casos del SEED; si ya tiene datos, compara los IDs del SEED contra los existentes y agrega solo los que falten (backfill, `reclamos.mjs:69-76`). |
+| `reclamos.mjs` | ✅ estable | CRUD sobre Netlify Blobs. 🔴 **El store se llama `reclamos-vtm805` y la key es `claims`** (`reclamos.mjs:62` y `:65`) — nombre heredado de cuando solo existía la VTM 805. **NO renombrarlo** aunque el site se llame `reclamos-colectivos`: se perdería todo el histórico. Acciones: GET (lista), POST (agrega con `id = Date.now().toString()`), PUT (actualiza por id), DELETE. Auth: Bearer header validado contra `btoa(ACCESS_PIN + ':reclamos')`. **Autoseed:** si el blob está vacío escribe los 46 casos del SEED; si ya tiene datos, compara los IDs del SEED contra los existentes y agrega solo los que falten (backfill). 🔴 **El backfill respeta la key `deleted`** (ver abajo). |
+
+### 🔴 Lápidas (`deleted`) — no tocar sin entender esto
+
+El autoseed del GET reinyecta cualquier caso del SEED que falte. Sin defensa, **borrar uno de los 46 casos originales no serviría de nada: reaparecería en la siguiente carga de la app.** Por eso el `DELETE` anota el id en una segunda key del mismo store:
+
+- `store.get('deleted')` → array de ids borrados a propósito.
+- El backfill del GET filtra `!tomb.has(s.id)` antes de reinyectar.
+
+Consecuencias prácticas:
+- **Nunca quitar ese filtro** — el botón de eliminar dejaría de funcionar para los 46 casos seed y nadie se daría cuenta hasta que el caso reapareciera.
+- Si alguna vez hay que "des-borrar" un caso seed, se quita su id del array `deleted` y vuelve solo en la siguiente carga.
+- Los casos digitados a mano (id = `Date.now()`) no dependen de esto, pero igual quedan anotados.
+
+Probado el 19 ago 2026 con un arnés que corre el archivo real contra un store en memoria (15 aserciones, todas verdes): siembra, borrado de seed, 2 recargas sin resurrección, borrado de caso nuevo, resto intacto, DELETE sin id → 400, DELETE sin token → 401.
 
 **netlify.toml**: `publish = "."`, functions `netlify/functions`, redirect `/api/*` → `/.netlify/functions/:splat`, `/` → `/index.html`. Cache headers `no-cache` para `*.html`.
 
@@ -276,6 +293,8 @@ Se conserva acá porque el nodo de memoria fue retirado. Para el detalle complet
 | `716d399` | PDF: título "INFORME RECLAMOS" + cédula jurídica `3-002-056545` |
 | `d760883` | 🔴 **Security fix**: elimina el fallback quemado del PIN, `ACCESS_PIN` obligatoria (fail-closed) |
 | `08e2e68` | Fix: los conteos de los chips respetan filtros año/cobertura/buscador |
-| `e2b4189` | SKILL.md sync (último commit en `main`) |
+| `e2b4189` | SKILL.md sync |
+| `3b10684` | SKILL.md: migrar memoria del nodo al skill del proyecto (22 jul 2026) |
+| *19 ago 2026* | **Botón de eliminar reclamo** con confirmación reforzada + lápidas `deleted` en el autoseed |
 
 Antes de esa cadena: migración del repo de `jhernandez-vibecode` a `vibecode-clients-lda` y transferencia del site Netlify con "Transfer site" (Blobs preservados), 11 may 2026.

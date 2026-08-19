@@ -67,8 +67,11 @@ export default async (req) => {
       claims = SEED;
       await store.set('claims', JSON.stringify(claims));
     } else {
+      // Lápidas: casos del SEED que el usuario borró a propósito. Sin esto el
+      // backfill de abajo los resucitaría en la siguiente carga de la app.
+      const tomb = new Set((await store.get('deleted', { type: 'json' })) || []);
       const existingIds = new Set(claims.map(c => c.id));
-      const missing = SEED.filter(s => !existingIds.has(s.id));
+      const missing = SEED.filter(s => !existingIds.has(s.id) && !tomb.has(s.id));
       if (missing.length) {
         claims = [...missing, ...claims];
         await store.set('claims', JSON.stringify(claims));
@@ -97,9 +100,16 @@ export default async (req) => {
 
   if (req.method === 'DELETE') {
     const { id } = await req.json();
+    if (!id) return new Response('Falta el id', { status: 400 });
     let claims = (await store.get('claims', { type: 'json' })) || [];
     claims = claims.filter(c => c.id !== id);
     await store.set('claims', JSON.stringify(claims));
+    // Anotar la lápida para que el autoseed del GET no lo devuelva a la vida.
+    const tomb = (await store.get('deleted', { type: 'json' })) || [];
+    if (!tomb.includes(id)) {
+      tomb.push(id);
+      await store.set('deleted', JSON.stringify(tomb));
+    }
     return Response.json({ ok: true });
   }
 
