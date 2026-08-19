@@ -1507,7 +1507,7 @@ function setMontoAseg(val) {
   if (v && !Array.from(sel.options).some(o => o.value === v)) {
     const opt = document.createElement('option');
     opt.value = v;
-    opt.textContent = '₡' + Number(v).toLocaleString('es-CR') + ' (otro)';
+    opt.textContent = '₡' + Number(v).toLocaleString('es-CR');
     sel.appendChild(opt);
   }
   sel.value = v;
@@ -1762,11 +1762,16 @@ function renderStats(year) {
     return '₡' + v;
   };
   montosPoliza.forEach(m => ranges[fmtMonto(m)] = 0);
-  ranges['Otro'] = 0;
   data.forEach(c => {
     const v = c.montoAseg||0;
-    const key = montosPoliza.includes(v) ? fmtMonto(v) : (v>0 ? 'Otro' : null);
-    if (key) ranges[key]++;
+    if (v <= 0) return;
+    // Los montos asegurados de la póliza son SOLO sus escalones fijos. Si un caso
+    // trae otro valor (digitación), se cuenta en el escalón más cercano: no hay
+    // categoría "Otro", todos los casos caen en un escalón real.
+    const escalon = montosPoliza.includes(v)
+      ? v
+      : montosPoliza.reduce((a,b) => Math.abs(b-v) < Math.abs(a-v) ? b : a);
+    ranges[fmtMonto(escalon)]++;
   });
   Object.keys(ranges).forEach(k => { if (ranges[k] === 0) delete ranges[k]; });
   const colors2 = ['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#64748b'];
