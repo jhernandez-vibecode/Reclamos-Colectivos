@@ -307,4 +307,4 @@ Antes de esa cadena: migración del repo de `jhernandez-vibecode` a `vibecode-cl
 
 ---
 
-> **Ubicaciones canon (desde el 7 sep 2026, decisión 10-C):** `vibecode-clients-lda/Reclamos-Colectivos` → `.claude/skills/especialista-en-reclamos-colectivos/SKILL.md` y `C:\Users\segur\.claude\skills\especialista-en-reclamos-colectivos\SKILL.md`, byte-idénticas. Se edita en el repo, se commitea y se copia al user-level (o al revés, pero siempre las dos en el mismo día).
+> **Ubicaciones canon (desde el 6 sep 2026, decisión 10-C):** `vibecode-clients-lda/Reclamos-Colectivos` → `.claude/skills/especialista-en-reclamos-colectivos/SKILL.md` y `C:\Users\segur\.claude\skills\especialista-en-reclamos-colectivos\SKILL.md`, byte-idénticas. Se edita en el repo, se commitea y se copia al user-level (o al revés, pero siempre las dos en el mismo día).
